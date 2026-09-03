@@ -1,0 +1,8 @@
+sample_rate: 16000
+n_mfcc: 40
+use_delta: true
+use_delta_delta: true
+n_fft: 2048
+hop_length: 512
+max_pad_len: 174
+seed: 42

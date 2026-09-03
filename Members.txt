@@ -1,0 +1,6 @@
+SE4050 - Deep Learning | Group Members
+
+1. Name: [Full Name]        Student No: [e.g. IT21xxxxxx]   Email: [email]   (Group Leader)
+2. Name: [Full Name]        Student No: [e.g. IT21xxxxxx]   Email: [email]
+3. Name: [Full Name]        Student No: [e.g. IT21xxxxxx]   Email: [email]
+4. Name: [Full Name]        Student No: [e.g. IT21xxxxxx]   Email: [email]

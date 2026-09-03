@@ -1,0 +1,8 @@
+model: mlp
+seed: 42
+input_type: flattened_mfcc   # MLP flattens the (n_features, time) matrix
+batch_size: 32
+epochs: 60
+learning_rate: 0.001
+early_stopping_patience: 8
+notes: "Baseline model. No temporal structure preserved."

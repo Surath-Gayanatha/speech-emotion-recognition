@@ -1,0 +1,8 @@
+model: bilstm
+seed: 42
+input_type: mfcc_sequence
+batch_size: 32
+epochs: 60
+learning_rate: 0.001
+early_stopping_patience: 10
+notes: "Bidirectional context; ~2x LSTM params. Compare compute cost vs. accuracy gain in Critical Analysis."

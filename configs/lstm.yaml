@@ -1,0 +1,8 @@
+model: lstm
+seed: 42
+input_type: mfcc_sequence
+batch_size: 32
+epochs: 60
+learning_rate: 0.001
+early_stopping_patience: 10
+notes: "Forward-only sequential modeling of MFCC time series."

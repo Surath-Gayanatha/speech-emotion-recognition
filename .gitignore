@@ -1,0 +1,72 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ===== Virtual environments =====
+venv/
+env/
+.venv/
+ENV/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ===== Environment / secrets =====
+.env
+*.env.local
+kaggle.json
+
+# ===== Audio data (large, do NOT commit) =====
+data/raw/
+data/processed/
+*.wav
+*.mp3
+*.flac
+*.m4a
+
+# Exception: keep small split definition files (actor IDs / filenames, not audio)
+!data/splits/
+!data/splits/**
+
+# ===== Model checkpoints / weights (large, do NOT commit) =====
+models/**/*.h5
+models/**/*.pt
+models/**/*.pth
+models/**/*.ckpt
+models/**/*.keras
+models/**/checkpoint*
+*.h5
+*.pt
+*.pth
+
+# ===== Logs / experiment tracking =====
+results/logs/**
+!results/logs/.gitkeep
+wandb/
+mlruns/
+*.log
+
+# ===== OS / editor junk =====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# ===== Report build artifacts =====
+*.aux
+*.toc
+*.out
+~$*.docx
+
+# ===== Large misc data formats (feature caches) =====
+*.npy
+*.npz
+*.pkl
+*.h5cache

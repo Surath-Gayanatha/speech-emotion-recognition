@@ -1,0 +1,8 @@
+model: cnn1d
+seed: 42
+input_type: mfcc_sequence    # (time_steps, n_features), NOT flattened
+batch_size: 32
+epochs: 60
+learning_rate: 0.001
+early_stopping_patience: 8
+notes: "Captures local spectral-temporal patterns via 1D convolution."

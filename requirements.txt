@@ -1,0 +1,38 @@
+# --- Core numerical / data handling ---
+numpy>=1.26,<2.0
+pandas>=2.1
+scipy>=1.11
+
+# --- Audio processing / feature extraction ---
+librosa>=0.10.1
+soundfile>=0.12.1
+audioread>=3.0.1
+
+# --- Deep learning framework (pick ONE and keep it consistent across all 4 models) ---
+# TensorFlow / Keras option:
+tensorflow>=2.15,<2.17
+# PyTorch option (comment out TensorFlow above and uncomment below if you choose PyTorch instead):
+# torch>=2.2
+# torchaudio>=2.2
+
+# --- Classical ML (for baseline comparisons / preprocessing helpers, e.g. StandardScaler, PCA) ---
+scikit-learn>=1.4
+
+# --- Evaluation & visualization ---
+matplotlib>=3.8
+seaborn>=0.13
+
+# --- Experiment tracking / reproducibility ---
+pyyaml>=6.0.1
+tqdm>=4.66
+
+# --- Notebook environment ---
+jupyter>=1.0.0
+ipykernel>=6.29
+
+# --- Dataset download convenience (optional) ---
+kagglehub>=0.2.0
+
+# --- Dev / formatting (optional but recommended for consistent commits) ---
+black>=24.1.0
+flake8>=7.0.0

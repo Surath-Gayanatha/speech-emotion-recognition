@@ -1,0 +1,73 @@
+speech-emotion-recognition/
+│
+├── README.md
+├── requirements.txt
+├── .gitignore
+├── CONTRIBUTING.md
+├── Members.txt
+│
+├── data/
+│   ├── raw/                     # original CREMA-D audio (NOT committed — see .gitignore)
+│   ├── processed/                # extracted MFCC / feature arrays (.npy, .csv) — NOT committed if large
+│   ├── splits/                   # actor-level train/val/test split definitions (CSV of actor IDs / filenames — small, COMMIT these)
+│   └── README.md                 # how to download CREMA-D + where files go
+│
+├── notebooks/
+│   ├── 01_eda.ipynb               # exploratory data analysis on CREMA-D
+│   ├── 02_preprocessing.ipynb     # MFCC / feature extraction walkthrough
+│   ├── 03_mlp.ipynb               # MLP training/eval (Member 2)
+│   ├── 04_cnn1d.ipynb             # 1D CNN training/eval (Member 3)
+│   ├── 05_lstm_bilstm.ipynb       # LSTM + BiLSTM training/eval (Member 4)
+│   └── 06_model_comparison.ipynb  # joint cross-model comparison + critical analysis plots
+│
+├── src/
+│   ├── __init__.py
+│   ├── config.py                  # paths, seeds, shared constants (SAMPLE_RATE, N_MFCC, etc.)
+│   ├── data/
+│   │   ├── __init__.py
+│   │   ├── download.py            # optional: script/instructions to fetch CREMA-D via kagglehub
+│   │   ├── split.py                # actor-level train/val/test split logic (prevents leakage)
+│   │   └── dataset.py              # PyTorch/TF Dataset or data-loading utilities
+│   ├── features/
+│   │   ├── __init__.py
+│   │   └── extract_features.py     # MFCC (+ delta/delta-delta) / log-mel extraction pipeline
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── mlp.py
+│   │   ├── cnn1d.py
+│   │   ├── lstm.py
+│   │   └── bilstm.py
+│   ├── training/
+│   │   ├── __init__.py
+│   │   ├── train.py                 # generic training loop (shared across models)
+│   │   └── callbacks.py             # early stopping, checkpointing, LR scheduling
+│   └── evaluation/
+│       ├── __init__.py
+│       ├── metrics.py               # accuracy, precision, recall, F1, ROC-AUC, confusion matrix
+│       └── compare_models.py        # cross-model comparison utilities/plots
+│
+├── configs/
+│   ├── mlp.yaml                    # hyperparameters + seed for MLP run
+│   ├── cnn1d.yaml
+│   ├── lstm.yaml
+│   └── bilstm.yaml
+│
+├── models/                          # saved trained model weights/checkpoints — NOT committed (large binaries)
+│   ├── mlp/
+│   ├── cnn1d/
+│   ├── lstm/
+│   └── bilstm/
+│
+├── results/
+│   ├── logs/                        # training logs / loss-accuracy curves per model
+│   ├── metrics/                     # CSV/JSON of final test metrics per model (small — COMMIT these)
+│   ├── confusion_matrices/          # saved confusion matrix plots (PNG — COMMIT these)
+│   └── figures/                     # comparison charts for the report
+│
+├── report/
+│   ├── SE4050_Report.docx (or .tex/.md source)
+│   ├── figures/                     # figures pulled into the report
+│   └── references.bib               # if using LaTeX/BibTeX
+│
+└── .github/
+    └── PULL_REQUEST_TEMPLATE.md      # optional: lightweight PR checklist
