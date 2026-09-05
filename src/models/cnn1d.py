@@ -1,11 +1,8 @@
-"""1D CNN for Speech Emotion Recognition.
+"""
+1D CNN for Speech Emotion Recognition.
 
-Architectural role: convolves filters along the time axis of the MFCC
-sequence to learn local spectral-temporal patterns (short bursts of
-pitch/energy change) without modeling long-range sequential dependency
-the way LSTM/BiLSTM do. Distinguishes itself from the MLP by preserving
-time structure, and from LSTM/BiLSTM by only capturing *local* rather than
-*long-range* temporal context.
+The model learns local spectral-temporal patterns from
+MFCC + delta + delta-delta sequences.
 """
 
 from tensorflow import keras
@@ -14,27 +11,81 @@ from tensorflow.keras import layers
 from src.config import NUM_CLASSES
 
 
-def build_cnn1d(input_shape: tuple, num_classes: int = NUM_CLASSES) -> keras.Model:
-    """input_shape: (time_steps, n_features) -- MFCC transposed so time is axis 0."""
+def build_cnn1d(
+    input_shape: tuple,
+    num_classes: int = NUM_CLASSES
+) -> keras.Model:
+
     model = keras.Sequential([
         layers.Input(shape=input_shape),
-        layers.Conv1D(64, kernel_size=5, activation="relu", padding="same"),
+
+        # Block 1
+        layers.Conv1D(
+            64,
+            kernel_size=5,
+            padding="same",
+            activation="relu"
+        ),
         layers.BatchNormalization(),
-        layers.MaxPooling1D(pool_size=2),
-        layers.Conv1D(128, kernel_size=5, activation="relu", padding="same"),
+
+        layers.Conv1D(
+            64,
+            kernel_size=5,
+            padding="same",
+            activation="relu"
+        ),
         layers.BatchNormalization(),
+
         layers.MaxPooling1D(pool_size=2),
-        layers.Conv1D(128, kernel_size=3, activation="relu", padding="same"),
+        layers.Dropout(0.25),
+
+        # Block 2
+        layers.Conv1D(
+            128,
+            kernel_size=5,
+            padding="same",
+            activation="relu"
+        ),
+        layers.BatchNormalization(),
+
+        layers.Conv1D(
+            128,
+            kernel_size=3,
+            padding="same",
+            activation="relu"
+        ),
+        layers.BatchNormalization(),
+
+        layers.MaxPooling1D(pool_size=2),
+        layers.Dropout(0.30),
+
+        # Block 3
+        layers.Conv1D(
+            256,
+            kernel_size=3,
+            padding="same",
+            activation="relu"
+        ),
+        layers.BatchNormalization(),
+
         layers.GlobalAveragePooling1D(),
-        layers.Dropout(0.4),
-        layers.Dense(64, activation="relu"),
-        layers.Dropout(0.3),
-        layers.Dense(num_classes, activation="softmax"),
+
+        # Classification head
+        layers.Dense(128, activation="relu"),
+        layers.Dropout(0.50),
+
+        layers.Dense(
+            num_classes,
+            activation="softmax"
+        ),
     ], name="cnn1d")
 
     model.compile(
-        optimizer="adam",
+        optimizer=keras.optimizers.Adam(
+            learning_rate=0.0005
+        ),
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
+
     return model
