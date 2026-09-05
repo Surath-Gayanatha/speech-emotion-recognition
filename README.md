@@ -60,8 +60,6 @@ speech-emotion-recognition/
 └── report/            # final report source + figures
 ```
 
-Full annotated tree: [`FOLDER_STRUCTURE.txt`](FOLDER_STRUCTURE.txt).
-
 Design choices worth noting:
 - `data/splits/` is **actor-level**, not clip-level or random — this prevents the same actor's voice appearing in both train and test, which would leak speaker identity cues and inflate accuracy. See `src/data/split.py`.
 - `configs/*.yaml` store the exact hyperparameters and random seed used for each model's reported results, so any member (or the marker) can reproduce them.
@@ -128,7 +126,7 @@ Each training run saves:
 
 Cross-model comparison, the Critical Analysis & Discussion section, and viva preparation are **joint work** across all four members — see individual commit history for detailed, traceable contributions.
 
-See `Members.txt` for full names, student numbers, and emails, and `CONTRIBUTING.md` for our commit conventions.
+See `Members.txt` for full names, student numbers, and emails.
 
 ---
 
