@@ -15,6 +15,7 @@ from src.config import (
 )
 
 from src.models.cnn1d import build_cnn1d
+from src.data.preprocessing import normalize_features
 
 
 EMOTION_NAMES = [
@@ -79,14 +80,14 @@ def main():
     # (samples, time_steps, n_features)
     # ---------------------------------------------------------
 
-    features = np.transpose(features, (0, 2, 1))
-
-    print(f"CNN input shape: {features.shape}")
-
     # Load actor-level splits
     train_actors = load_actor_ids("train_actors.txt")
     val_actors = load_actor_ids("val_actors.txt")
     test_actors = load_actor_ids("test_actors.txt")
+
+    features = normalize_features(features, filenames, train_actors)
+
+    print(f"CNN input shape: {features.shape}")
 
     # Create masks
     train_mask = create_split_mask(filenames, train_actors)

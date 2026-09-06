@@ -15,6 +15,7 @@ from src.config import (
     RANDOM_SEED,
 )
 from src.models.cnn_attention import build_cnn_attention
+from src.data.preprocessing import normalize_features
 
 
 def set_seed(seed=RANDOM_SEED):
@@ -58,10 +59,6 @@ def main():
     # (samples, time_steps, features)
     #
     # Therefore:
-    features = np.transpose(features, (0, 2, 1))
-
-    print("Model input shape:", features.shape)
-
     # ---------------------------------------------------------
     # Load actor-level train / validation / test splits
     # ---------------------------------------------------------
@@ -77,6 +74,10 @@ def main():
     test_actors = read_actor_ids(
         SPLITS_DIR / "test_actors.txt"
     )
+
+    features = normalize_features(features, filenames, train_actors)
+
+    print("Model input shape:", features.shape)
 
     filename_actor_ids = np.array(
         [extract_actor_id(str(name)) for name in filenames]

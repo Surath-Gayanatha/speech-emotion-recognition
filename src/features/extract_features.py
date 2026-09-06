@@ -32,9 +32,11 @@ from src.config import (
 )
 
 
-def extract_mfcc(file_path: Path) -> np.ndarray:
-    """Return an MFCC (+ delta/delta-delta) feature matrix of shape
-    (n_features, MAX_PAD_LEN), padded or truncated to a fixed length.
+def extract_mfcc(file_path: Path) -> tuple[np.ndarray, int]:
+    """Return features and the number of valid frames before padding.
+
+    The valid length is saved separately so training can ignore padded
+    frames instead of treating them as speech.
     """
     y, sr = librosa.load(file_path, sr=SAMPLE_RATE)
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC, n_fft=N_FFT, hop_length=HOP_LENGTH)
@@ -47,14 +49,16 @@ def extract_mfcc(file_path: Path) -> np.ndarray:
 
     features = np.vstack(feature_stack)  # (n_features, time)
 
-    # Pad or truncate along the time axis to MAX_PAD_LEN
+    valid_length = min(features.shape[1], MAX_PAD_LEN)
+
+    # Pad or truncate along the time axis to MAX_PAD_LEN.
     if features.shape[1] < MAX_PAD_LEN:
         pad_width = MAX_PAD_LEN - features.shape[1]
         features = np.pad(features, ((0, 0), (0, pad_width)), mode="constant")
     else:
         features = features[:, :MAX_PAD_LEN]
 
-    return features
+    return features, valid_length
 
 
 def parse_label(file_path: Path) -> int:
@@ -73,22 +77,25 @@ def main():
 
     DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-    features, labels, filenames = [], [], []
+    features, lengths, labels, filenames = [], [], [], []
     for wav_path in tqdm(wav_files, desc="Extracting features"):
         try:
-            feat = extract_mfcc(wav_path)
+            feat, valid_length = extract_mfcc(wav_path)
             label = parse_label(wav_path)
         except (KeyError, IndexError):
             print(f"Skipping unparseable file: {wav_path.name}")
             continue
         features.append(feat)
+        lengths.append(valid_length)
         labels.append(label)
         filenames.append(wav_path.stem)
 
     features = np.stack(features)   # (N, n_features, MAX_PAD_LEN)
+    lengths = np.array(lengths, dtype=np.int32)
     labels = np.array(labels)
 
     np.save(DATA_PROCESSED_DIR / "features.npy", features)
+    np.save(DATA_PROCESSED_DIR / "lengths.npy", lengths)
     np.save(DATA_PROCESSED_DIR / "labels.npy", labels)
     np.save(DATA_PROCESSED_DIR / "filenames.npy", np.array(filenames))
 
