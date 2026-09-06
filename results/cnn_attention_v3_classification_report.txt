@@ -1,0 +1,27 @@
+CNN + Attention V3 - Test Results
+=================================
+
+Test Loss: 1.3799
+Test Accuracy: 53.05%
+
+Classification Report:
+              precision    recall  f1-score   support
+
+       Anger     0.7317    0.5714    0.6417       210
+     Disgust     0.4320    0.6810    0.5287       210
+        Fear     0.5027    0.4476    0.4736       210
+       Happy     0.5641    0.4190    0.4809       210
+     Neutral     0.5488    0.5028    0.5248       179
+         Sad     0.5154    0.5571    0.5355       210
+
+    accuracy                         0.5305      1229
+   macro avg     0.5491    0.5298    0.5308      1229
+weighted avg     0.5491    0.5305    0.5310      1229
+
+Confusion Matrix:
+[[120  48  12  24   4   2]
+ [ 10 143   9  15  10  23]
+ [ 11  25  94  21  19  40]
+ [ 16  29  49  88  17  11]
+ [  6  36   8   5  90  34]
+ [  1  50  15   3  24 117]]
