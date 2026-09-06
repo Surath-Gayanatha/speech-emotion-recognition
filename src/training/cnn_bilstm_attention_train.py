@@ -15,7 +15,9 @@ from src.config import (
     RANDOM_SEED,
 )
 
-from src.models.cnn_attention import build_cnn_attention
+from src.models.cnn_bilstm_attention import (
+    build_cnn_bilstm_attention
+)
 
 
 def set_seed(seed=RANDOM_SEED):
@@ -40,7 +42,15 @@ def main():
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    print("Loading features...")
+    print("=" * 60)
+    print("CNN + BiLSTM + Attention TRAINING")
+    print("=" * 60)
+
+    # ---------------------------------------------------------
+    # Load processed features
+    # ---------------------------------------------------------
+
+    print("\nLoading processed features...")
 
     features = np.load(
         DATA_PROCESSED_DIR / "features.npy"
@@ -55,7 +65,7 @@ def main():
         allow_pickle=True
     )
 
-    print("Original feature shape:", features.shape)
+    print("Original features shape:", features.shape)
     print("Labels shape:", labels.shape)
 
     # ---------------------------------------------------------
@@ -66,12 +76,15 @@ def main():
     # (samples, 174, 120)
     # ---------------------------------------------------------
 
-    features = np.transpose(features, (0, 2, 1))
+    features = np.transpose(
+        features,
+        (0, 2, 1)
+    )
 
     print("Model input shape:", features.shape)
 
     # ---------------------------------------------------------
-    # ACTOR-LEVEL SPLIT
+    # Load actor-level splits
     # ---------------------------------------------------------
 
     train_actors = read_actor_ids(
@@ -85,6 +98,10 @@ def main():
     test_actors = read_actor_ids(
         SPLITS_DIR / "test_actors.txt"
     )
+
+    # ---------------------------------------------------------
+    # Extract actor IDs from filenames
+    # ---------------------------------------------------------
 
     filename_actor_ids = np.array(
         [
@@ -108,6 +125,10 @@ def main():
         list(test_actors)
     )
 
+    # ---------------------------------------------------------
+    # Create datasets
+    # ---------------------------------------------------------
+
     X_train = features[train_mask]
     y_train = labels[train_mask]
 
@@ -118,33 +139,26 @@ def main():
     y_test = labels[test_mask]
 
     print("\nDataset split:")
-    print("Train:", X_train.shape, y_train.shape)
-    print("Validation:", X_val.shape, y_val.shape)
-    print("Test:", X_test.shape, y_test.shape)
-
-    # ---------------------------------------------------------
-    # CLASS DISTRIBUTION
-    # ---------------------------------------------------------
-
-    print("\nTraining class distribution:")
-
-    unique_classes, class_counts = np.unique(
-        y_train,
-        return_counts=True
+    print(
+        "Train:",
+        X_train.shape,
+        y_train.shape
     )
 
-    for cls, count in zip(
-        unique_classes,
-        class_counts
-    ):
-        print(
-            f"Class {cls}: {count} samples"
-        )
+    print(
+        "Validation:",
+        X_val.shape,
+        y_val.shape
+    )
+
+    print(
+        "Test:",
+        X_test.shape,
+        y_test.shape
+    )
 
     # ---------------------------------------------------------
-    # CLASS WEIGHTS
-    # IMPORTANT:
-    # Calculated ONLY from training data
+    # Class weights
     # ---------------------------------------------------------
 
     classes = np.unique(y_train)
@@ -167,10 +181,12 @@ def main():
     print(class_weights)
 
     # ---------------------------------------------------------
-    # BUILD MODEL
+    # Build model
     # ---------------------------------------------------------
 
-    model = build_cnn_attention(
+    print("\nBuilding CNN + BiLSTM + Attention model...")
+
+    model = build_cnn_bilstm_attention(
         input_shape=X_train.shape[1:],
         num_classes=NUM_CLASSES
     )
@@ -179,27 +195,25 @@ def main():
     model.summary()
 
     # ---------------------------------------------------------
-    # CALLBACKS
+    # Callbacks
     # ---------------------------------------------------------
 
     checkpoint_path = (
         MODELS_DIR /
-        "cnn_attention_v3_best.keras"
+        "cnn_bilstm_attention_best.keras"
     )
 
     callbacks = [
 
         tf.keras.callbacks.ModelCheckpoint(
             filepath=str(checkpoint_path),
-            monitor="val_accuracy",
-            mode="max",
+            monitor="val_loss",
             save_best_only=True,
             verbose=1
         ),
 
         tf.keras.callbacks.EarlyStopping(
-            monitor="val_accuracy",
-            mode="max",
+            monitor="val_loss",
             patience=10,
             restore_best_weights=True,
             verbose=1
@@ -215,111 +229,89 @@ def main():
     ]
 
     # ---------------------------------------------------------
-    # TRAINING
+    # Train
     # ---------------------------------------------------------
 
-    print(
-        "\nStarting CNN + Attention V3 training...\n"
-    )
+    print("\n")
+    print("=" * 60)
+    print("STARTING TRAINING")
+    print("=" * 60)
 
     history = model.fit(
-
         X_train,
         y_train,
-
         validation_data=(
             X_val,
             y_val
         ),
-
         epochs=60,
-
         batch_size=32,
-
         class_weight=class_weights,
-
         callbacks=callbacks,
-
         verbose=1
     )
 
     # ---------------------------------------------------------
-    # LOAD BEST VALIDATION MODEL
-    # ---------------------------------------------------------
-
-    print(
-        "\nLoading best validation model..."
-    )
-
-    best_model = tf.keras.models.load_model(
-        checkpoint_path
-    )
-
-    # ---------------------------------------------------------
-    # SAVE BEST MODEL AS V3
+    # Save final model
     # ---------------------------------------------------------
 
     final_model_path = (
         MODELS_DIR /
-        "cnn_attention_v3_final.keras"
+        "cnn_bilstm_attention_final.keras"
     )
 
-    best_model.save(
-        final_model_path
-    )
+    model.save(final_model_path)
 
-    print(
-        "\nBest V3 model saved to:"
-    )
-
+    print("\nFinal model saved to:")
     print(final_model_path)
 
     # ---------------------------------------------------------
-    # TEST EVALUATION
-    #
-    # TEST SET IS USED ONLY HERE
+    # Final TEST evaluation
     # ---------------------------------------------------------
 
-    print(
-        "\nEvaluating BEST MODEL on TEST set..."
+    print("\n")
+    print("=" * 60)
+    print("FINAL TEST SET EVALUATION")
+    print("=" * 60)
+
+    test_loss, test_accuracy = model.evaluate(
+        X_test,
+        y_test,
+        verbose=1
     )
 
-    test_loss, test_accuracy = (
-        best_model.evaluate(
-            X_test,
-            y_test,
-            verbose=1
-        )
-    )
-
-    print("\n==============================")
-    print("CNN + Attention V3 TEST RESULTS")
-    print("==============================")
+    print("\n")
+    print("=" * 60)
+    print("CNN + BiLSTM + Attention TEST RESULTS")
+    print("=" * 60)
 
     print(
         f"Test Loss: {test_loss:.4f}"
     )
 
     print(
-        f"Test Accuracy: "
-        f"{test_accuracy * 100:.2f}%"
+        f"Test Accuracy: {test_accuracy * 100:.2f}%"
     )
 
     # ---------------------------------------------------------
-    # PREDICTIONS
+    # Predictions
     # ---------------------------------------------------------
 
     print("\nGenerating predictions...")
 
-    y_probability = best_model.predict(
+    probabilities = model.predict(
         X_test,
         verbose=1
     )
 
     y_pred = np.argmax(
-        y_probability,
+        probabilities,
         axis=1
     )
+
+    # ---------------------------------------------------------
+    # Classification report
+    # ---------------------------------------------------------
 
     emotion_names = [
         "Anger",
@@ -330,10 +322,6 @@ def main():
         "Sad"
     ]
 
-    # ---------------------------------------------------------
-    # CLASSIFICATION REPORT
-    # ---------------------------------------------------------
-
     report = classification_report(
         y_test,
         y_pred,
@@ -342,8 +330,11 @@ def main():
         digits=4
     )
 
+    print("\nClassification Report:")
+    print(report)
+
     # ---------------------------------------------------------
-    # CONFUSION MATRIX
+    # Confusion matrix
     # ---------------------------------------------------------
 
     cm = confusion_matrix(
@@ -352,29 +343,27 @@ def main():
         labels=list(range(NUM_CLASSES))
     )
 
-    print("\nClassification Report:")
-    print(report)
-
     print("Confusion Matrix:")
     print(cm)
 
     # ---------------------------------------------------------
-    # SAVE REPORT
+    # Save classification report
     # ---------------------------------------------------------
 
     report_path = (
         RESULTS_DIR /
-        "cnn_attention_v3_classification_report.txt"
+        "cnn_bilstm_attention_classification_report.txt"
     )
 
     with open(report_path, "w") as f:
 
         f.write(
-            "CNN + Attention V3 - Test Results\n"
+            "CNN + BiLSTM + Attention "
+            "Test Results\n"
         )
 
         f.write(
-            "=================================\n\n"
+            "================================\n\n"
         )
 
         f.write(
@@ -399,12 +388,12 @@ def main():
         f.write(str(cm))
 
     # ---------------------------------------------------------
-    # SAVE TRAINING HISTORY
+    # Save training history
     # ---------------------------------------------------------
 
     history_path = (
         RESULTS_DIR /
-        "cnn_attention_v3_history.npz"
+        "cnn_bilstm_attention_history.npz"
     )
 
     np.savez(
@@ -427,24 +416,16 @@ def main():
         )
     )
 
-    print("\nResults saved:")
+    print("\n")
+    print("=" * 60)
+    print("TRAINING COMPLETED")
+    print("=" * 60)
 
+    print("\nSaved files:")
+
+    print(final_model_path)
     print(report_path)
-
     print(history_path)
-
-    print(
-        "\n=============================="
-    )
-
-    print(
-        "CNN + Attention V3 TRAINING "
-        "COMPLETED"
-    )
-
-    print(
-        "=============================="
-    )
 
 
 if __name__ == "__main__":
