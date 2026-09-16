@@ -1,0 +1,27 @@
+CNN + BiLSTM + Attention Test Results
+================================
+
+Test Loss: 1.3407
+Test Accuracy: 51.42%
+
+Classification Report:
+              precision    recall  f1-score   support
+
+       Anger     0.6042    0.6905    0.6444       210
+     Disgust     0.4463    0.6333    0.5236       210
+        Fear     0.4229    0.4571    0.4394       210
+       Happy     0.4627    0.4429    0.4526       210
+     Neutral     0.5921    0.5028    0.5438       179
+         Sad     0.6757    0.3571    0.4673       210
+
+    accuracy                         0.5142      1229
+   macro avg     0.5340    0.5140    0.5118      1229
+weighted avg     0.5325    0.5142    0.5110      1229
+
+Confusion Matrix:
+[[145  38   8  15   4   0]
+ [ 29 133  21  11   8   8]
+ [ 10  30  96  51   8  15]
+ [ 36  33  37  93  10   1]
+ [ 13  31  12  21  90  12]
+ [  7  33  53  10  32  75]]

@@ -141,4 +141,4 @@ See `Members.txt` for full names, student numbers, and emails.
 ## 8. Acknowledgements
 
 - Dataset: CREMA-D (Cao et al., 2014) — see citation above.
-- Any AI-assistance used in code scaffolding, debugging, or report drafting is disclosed in the report's Acknowledgements/References section per the assignment's academic integrity requirements.
+
