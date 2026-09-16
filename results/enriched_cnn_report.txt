@@ -1,0 +1,26 @@
+Enriched 200D Features CNN + SpecAugment Test Results
+============================================================
+
+Test Accuracy: 57.04%
+
+Classification Report:
+              precision    recall  f1-score   support
+
+       Anger     0.5740    0.7571    0.6530       210
+     Disgust     0.5500    0.4714    0.5077       210
+        Fear     0.5241    0.4667    0.4937       210
+       Happy     0.5795    0.4857    0.5285       210
+     Neutral     0.5885    0.7430    0.6568       179
+         Sad     0.6011    0.5238    0.5598       210
+
+    accuracy                         0.5704      1229
+   macro avg     0.5695    0.5746    0.5666      1229
+weighted avg     0.5691    0.5704    0.5643      1229
+
+Confusion Matrix:
+[[159  23  11  11   6   0]
+ [ 43  99  22   6  16  24]
+ [ 20  15  98  37  16  24]
+ [ 38  19  31 102  13   7]
+ [  8   6   4  10 133  18]
+ [  9  18  21  10  42 110]]
