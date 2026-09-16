@@ -7,25 +7,38 @@ from src.config import NUM_CLASSES
 
 def build_mlp(input_shape: tuple, num_classes: int = NUM_CLASSES) -> keras.Model:
 
-    model = keras.Sequential([
-        layers.Input(shape=input_shape),
+    inputs = layers.Input(shape=input_shape)
 
-        layers.Dense(512, activation="relu"),
-        layers.BatchNormalization(),
-        layers.Dropout(0.3),
+    x = layers.Dense(512, activation="relu")(inputs)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.4)(x)
 
-        layers.Dense(256, activation="relu"),
-        layers.BatchNormalization(),
-        layers.Dropout(0.3),
+    x = layers.Dense(256, activation="relu")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.4)(x)
 
-        layers.Dense(128, activation="relu"),
-        layers.Dropout(0.2),
+    x = layers.Dense(128, activation="relu")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.3)(x)
 
-        layers.Dense(num_classes, activation="softmax"),
-    ], name="mlp_baseline")
+    x = layers.Dense(64, activation="relu")(x)
+    x = layers.Dropout(0.2)(x)
+
+    outputs = layers.Dense(
+        num_classes,
+        activation="softmax"
+    )(x)
+
+    model = keras.Model(
+        inputs=inputs,
+        outputs=outputs,
+        name="mlp_tuned"
+    )
 
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=0.0005),
+        optimizer=keras.optimizers.Adam(
+            learning_rate=0.0003
+        ),
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )

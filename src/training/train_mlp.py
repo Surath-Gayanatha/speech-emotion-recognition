@@ -118,12 +118,19 @@ model.summary()
 # Early stopping
 # -----------------------------
 early_stopping = tf.keras.callbacks.EarlyStopping(
-    monitor="val_loss",
-    patience=PATIENCE,
+    monitor="val_accuracy",
+    patience=15,
+    mode="max",
     restore_best_weights=True
 )
 
-
+reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+    monitor="val_loss",
+    factor=0.5,
+    patience=5,
+    min_lr=1e-6,
+    verbose=1
+)
 # -----------------------------
 # Train
 # -----------------------------
@@ -133,7 +140,7 @@ history = model.fit(
     validation_data=(X_val, y_val),
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
-    callbacks=[early_stopping],
+    callbacks=[early_stopping, reduce_lr],
     verbose=1
 )
 
