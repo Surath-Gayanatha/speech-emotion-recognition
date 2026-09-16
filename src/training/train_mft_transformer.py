@@ -1,0 +1,509 @@
+import os
+import sys
+
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../..")
+)
+
+sys.path.insert(0, PROJECT_ROOT)
+
+import numpy as np
+import tensorflow as tf
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    classification_report,
+    confusion_matrix
+)
+
+from tensorflow import keras
+from tensorflow.keras.callbacks import (
+    EarlyStopping,
+    ReduceLROnPlateau,
+    ModelCheckpoint
+)
+
+from src.models.mft_transformer import (
+    build_mft_transformer,
+    FeatureProjection,
+    PositionalEmbedding,
+    MFTTransformerBlock,
+    AttentionPooling
+)
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+FEATURE_DIR = "data/mft_processed"
+SPLIT_DIR = "data/splits"
+
+MODEL_DIR = "models/mft_transformer"
+MODEL_PATH = os.path.join(
+    MODEL_DIR,
+    "mft_transformer_model.keras"
+)
+
+BATCH_SIZE = 32
+EPOCHS = 50
+PATIENCE = 10
+
+NUM_CLASSES = 6
+RANDOM_SEED = 42
+
+np.random.seed(RANDOM_SEED)
+tf.random.set_seed(RANDOM_SEED)
+
+
+# ============================================================
+# CREATE OUTPUT DIRECTORY
+# ============================================================
+
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+
+# ============================================================
+# LOAD FEATURES
+# ============================================================
+
+print("\n" + "=" * 60)
+print("LOADING MFT FEATURES")
+print("=" * 60)
+
+X = np.load(
+    os.path.join(FEATURE_DIR, "features.npy")
+)
+
+y = np.load(
+    os.path.join(FEATURE_DIR, "labels.npy")
+)
+
+actors = np.load(
+    os.path.join(FEATURE_DIR, "actors.npy")
+)
+
+print(f"Features shape : {X.shape}")
+print(f"Labels shape   : {y.shape}")
+print(f"Actors shape   : {actors.shape}")
+
+
+# ============================================================
+# LOAD ACTOR SPLITS
+# ============================================================
+
+def load_actor_ids(filename):
+    path = os.path.join(SPLIT_DIR, filename)
+
+    with open(path, "r") as f:
+        actor_ids = [
+            int(line.strip())
+            for line in f
+            if line.strip()
+        ]
+
+    return np.array(actor_ids)
+
+
+train_actors = load_actor_ids("train_actors.txt")
+val_actors = load_actor_ids("val_actors.txt")
+test_actors = load_actor_ids("test_actors.txt")
+
+print("\nActor split sizes:")
+print(f"Train actors      : {len(train_actors)}")
+print(f"Validation actors : {len(val_actors)}")
+print(f"Test actors       : {len(test_actors)}")
+
+
+# ============================================================
+# CREATE ACTOR-BASED SPLITS
+# ============================================================
+
+train_mask = np.isin(actors, train_actors)
+val_mask = np.isin(actors, val_actors)
+test_mask = np.isin(actors, test_actors)
+
+X_train = X[train_mask]
+y_train = y[train_mask]
+
+X_val = X[val_mask]
+y_val = y[val_mask]
+
+X_test = X[test_mask]
+y_test = y[test_mask]
+
+
+print("\nDataset split:")
+print(f"X_train : {X_train.shape}")
+print(f"X_val   : {X_val.shape}")
+print(f"X_test  : {X_test.shape}")
+
+
+# ============================================================
+# STANDARDIZATION
+# ============================================================
+#
+# Standardization is fitted ONLY on training data.
+# This prevents information leakage from validation/test data.
+#
+# Shape:
+#   (samples, time_steps, features)
+#
+# We standardize each feature across training samples/time.
+# ============================================================
+
+print("\n" + "=" * 60)
+print("STANDARDIZING FEATURES")
+print("=" * 60)
+
+num_features = X_train.shape[-1]
+
+scaler = StandardScaler()
+
+# Flatten samples and time:
+# (N, T, F) -> (N*T, F)
+
+X_train_2d = X_train.reshape(-1, num_features)
+
+scaler.fit(X_train_2d)
+
+X_train = scaler.transform(
+    X_train_2d
+).reshape(X_train.shape)
+
+X_val = scaler.transform(
+    X_val.reshape(-1, num_features)
+).reshape(X_val.shape)
+
+X_test = scaler.transform(
+    X_test.reshape(-1, num_features)
+).reshape(X_test.shape)
+
+
+print("Standardization complete.")
+
+
+# ============================================================
+# CHECK FOR NaN / INF
+# ============================================================
+
+print("\nChecking data...")
+
+print(
+    "NaN in train:",
+    np.isnan(X_train).sum()
+)
+
+print(
+    "NaN in validation:",
+    np.isnan(X_val).sum()
+)
+
+print(
+    "NaN in test:",
+    np.isnan(X_test).sum()
+)
+
+print(
+    "Inf in train:",
+    np.isinf(X_train).sum()
+)
+
+print(
+    "Inf in validation:",
+    np.isinf(X_val).sum()
+)
+
+print(
+    "Inf in test:",
+    np.isinf(X_test).sum()
+)
+
+
+# ============================================================
+# CREATE TF.DATA DATASETS
+# ============================================================
+
+print("\n" + "=" * 60)
+print("CREATING DATASETS")
+print("=" * 60)
+
+train_ds = (
+    tf.data.Dataset
+    .from_tensor_slices((X_train, y_train))
+    .shuffle(
+        buffer_size=len(X_train),
+        seed=RANDOM_SEED
+    )
+    .batch(BATCH_SIZE)
+    .prefetch(tf.data.AUTOTUNE)
+)
+
+val_ds = (
+    tf.data.Dataset
+    .from_tensor_slices((X_val, y_val))
+    .batch(BATCH_SIZE)
+    .prefetch(tf.data.AUTOTUNE)
+)
+
+test_ds = (
+    tf.data.Dataset
+    .from_tensor_slices((X_test, y_test))
+    .batch(BATCH_SIZE)
+    .prefetch(tf.data.AUTOTUNE)
+)
+
+
+# ============================================================
+# BUILD MODEL
+# ============================================================
+
+print("\n" + "=" * 60)
+print("BUILDING MFT TRANSFORMER")
+print("=" * 60)
+
+model = build_mft_transformer(
+    input_shape=X_train.shape[1:],
+    num_classes=NUM_CLASSES,
+    embed_dim=128,
+    num_heads=8,
+    ff_dim=256,
+    num_layers=4,
+    dropout=0.15
+)
+
+model.summary()
+
+
+# ============================================================
+# COMPILE
+# ============================================================
+
+print("\n" + "=" * 60)
+print("COMPILING MODEL")
+print("=" * 60)
+
+try:
+    optimizer = keras.optimizers.AdamW(
+        learning_rate=2e-4,
+        weight_decay=1e-4
+    )
+except AttributeError:
+    optimizer = keras.optimizers.Adam(
+        learning_rate=2e-4
+    )
+
+model.compile(
+    optimizer=optimizer,
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+
+# ============================================================
+# CALLBACKS
+# ============================================================
+
+callbacks = [
+
+    ModelCheckpoint(
+        MODEL_PATH,
+        monitor="val_accuracy",
+        mode="max",
+        save_best_only=True,
+        verbose=1
+    ),
+
+    ReduceLROnPlateau(
+        monitor="val_loss",
+        factor=0.5,
+        patience=4,
+        min_lr=1e-6,
+        verbose=1
+    ),
+
+    EarlyStopping(
+        monitor="val_accuracy",
+        mode="max",
+        patience=PATIENCE,
+        restore_best_weights=True,
+        verbose=1
+    )
+]
+
+
+# ============================================================
+# TRAIN
+# ============================================================
+
+print("\n" + "=" * 60)
+print("STARTING MFT TRANSFORMER TRAINING")
+print("=" * 60)
+
+history = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=EPOCHS,
+    callbacks=callbacks,
+    verbose=1
+)
+
+
+# ============================================================
+# SAVE FINAL BEST-WEIGHT MODEL
+# ============================================================
+
+print("\n" + "=" * 60)
+print("MODEL SAVING")
+print("=" * 60)
+
+model.save(MODEL_PATH)
+
+print(f"Model saved to:")
+print(MODEL_PATH)
+
+
+# ============================================================
+# EVALUATE TEST SET
+# ============================================================
+
+print("\n" + "=" * 60)
+print("EVALUATING TEST SET")
+print("=" * 60)
+
+test_loss, test_accuracy = model.evaluate(
+    test_ds,
+    verbose=1
+)
+
+print(f"\nTest Loss     : {test_loss:.4f}")
+print(f"Test Accuracy : {test_accuracy:.4f}")
+
+
+# ============================================================
+# PREDICTIONS
+# ============================================================
+
+print("\nGenerating predictions...")
+
+y_prob = model.predict(
+    X_test,
+    batch_size=BATCH_SIZE,
+    verbose=1
+)
+
+y_pred = np.argmax(
+    y_prob,
+    axis=1
+)
+
+
+# ============================================================
+# METRICS
+# ============================================================
+
+accuracy = accuracy_score(
+    y_test,
+    y_pred
+)
+
+precision = precision_score(
+    y_test,
+    y_pred,
+    average="weighted",
+    zero_division=0
+)
+
+recall = recall_score(
+    y_test,
+    y_pred,
+    average="weighted",
+    zero_division=0
+)
+
+f1 = f1_score(
+    y_test,
+    y_pred,
+    average="weighted",
+    zero_division=0
+)
+
+
+print("\n" + "=" * 60)
+print("FINAL TEST RESULTS")
+print("=" * 60)
+
+print(f"Accuracy : {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall   : {recall:.4f}")
+print(f"F1-score : {f1:.4f}")
+
+
+# ============================================================
+# CLASSIFICATION REPORT
+# ============================================================
+
+emotion_names = [
+    "Angry",
+    "Disgust",
+    "Fear",
+    "Happy",
+    "Neutral",
+    "Sad"
+]
+
+print("\n" + "=" * 60)
+print("CLASSIFICATION REPORT")
+print("=" * 60)
+
+print(
+    classification_report(
+        y_test,
+        y_pred,
+        target_names=emotion_names,
+        zero_division=0
+    )
+)
+
+
+# ============================================================
+# CONFUSION MATRIX
+# ============================================================
+
+print("\n" + "=" * 60)
+print("CONFUSION MATRIX")
+print("=" * 60)
+
+cm = confusion_matrix(
+    y_test,
+    y_pred
+)
+
+print(cm)
+
+
+# ============================================================
+# TRAINING SUMMARY
+# ============================================================
+
+best_epoch = np.argmax(
+    history.history["val_accuracy"]
+) + 1
+
+best_val_accuracy = max(
+    history.history["val_accuracy"]
+)
+
+print("\n" + "=" * 60)
+print("TRAINING SUMMARY")
+print("=" * 60)
+
+print(f"Best epoch       : {best_epoch}")
+print(f"Best val accuracy: {best_val_accuracy:.4f}")
+print(f"Test accuracy    : {accuracy:.4f}")
+print(f"Test F1-score    : {f1:.4f}")
+
+print("\nTraining complete.")
