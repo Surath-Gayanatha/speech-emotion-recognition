@@ -118,7 +118,7 @@ model.summary()
 # Early stopping
 # -----------------------------
 early_stopping = tf.keras.callbacks.EarlyStopping(
-    monitor="val_accuracy",
+    monitor="val_loss",
     patience=15,
     mode="max",
     restore_best_weights=True
