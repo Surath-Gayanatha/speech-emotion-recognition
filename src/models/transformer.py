@@ -6,247 +6,272 @@ from src.config import NUM_CLASSES
 
 
 # ============================================================
-# Positional Embedding
+# Squeeze-and-Excitation (SE) Channel Attention Module
 # ============================================================
 
-class PositionalEmbedding(layers.Layer):
+class SqueezeAndExcitation(layers.Layer):
+    """Channel Attention module to recalibrate feature map channels."""
 
-    def __init__(self, max_length, embed_dim):
+    def __init__(self, channels, reduction=4):
         super().__init__()
+        self.fc = keras.Sequential([
+            layers.GlobalAveragePooling1D(),
+            layers.Dense(channels // reduction, activation=tf.nn.gelu),
+            layers.Dense(channels, activation="sigmoid"),
+            layers.Reshape((1, channels))
+        ])
 
-        self.position_embedding = layers.Embedding(
-            input_dim=max_length,
-            output_dim=embed_dim
+    def call(self, x):
+        weight = self.fc(x)
+        return x * weight
+
+
+# ============================================================
+# Multi-Scale 1D Convolutional Local Feature Extractor
+# ============================================================
+
+class MultiScaleConvBlock(layers.Layer):
+    """Extracts local acoustic features using parallel 1D Convolutions with kernel sizes 3, 5, 7."""
+
+    def __init__(self, filters=128, dropout=0.15):
+        super().__init__()
+        branch_filters = filters // 3
+        remainder = filters - (branch_filters * 3)
+
+        self.conv3 = layers.Conv1D(branch_filters, kernel_size=3, padding="same")
+        self.conv5 = layers.Conv1D(branch_filters, kernel_size=5, padding="same")
+        self.conv7 = layers.Conv1D(branch_filters + remainder, kernel_size=7, padding="same")
+
+        self.bn = layers.BatchNormalization()
+        self.act = layers.Activation(tf.nn.gelu)
+        self.se = SqueezeAndExcitation(filters)
+        self.dropout = layers.Dropout(dropout)
+
+    def call(self, x, training=False):
+        c3 = self.conv3(x)
+        c5 = self.conv5(x)
+        c7 = self.conv7(x)
+        out = tf.concat([c3, c5, c7], axis=-1)
+        out = self.bn(out, training=training)
+        out = self.act(out)
+        out = self.se(out)
+        return self.dropout(out, training=training)
+
+
+# ============================================================
+# Relative Convolutional Positional Encoding
+# ============================================================
+
+class DepthwiseConvPositionalEncoding(layers.Layer):
+    """Learns relative positional representations using depthwise 1D convolutions."""
+
+    def __init__(self, embed_dim, kernel_size=3):
+        super().__init__()
+        self.conv = layers.Conv1D(
+            filters=embed_dim,
+            kernel_size=kernel_size,
+            padding="same",
+            groups=embed_dim
         )
 
     def call(self, x):
-
-        positions = tf.range(
-            start=0,
-            limit=tf.shape(x)[1],
-            delta=1
-        )
-
-        position_embeddings = self.position_embedding(
-            positions
-        )
-
-        return x + position_embeddings
+        return x + self.conv(x)
 
 
 # ============================================================
-# Transformer Encoder
+# Conformer-Transformer Encoder Block
 # ============================================================
 
-class TransformerEncoder(layers.Layer):
+class ConformerBlock(layers.Layer):
+    """Dual-Branch Conformer Block: Pre-LN MHA + Depthwise Conv Module + GELU FFN."""
 
     def __init__(
         self,
-        embed_dim,
-        num_heads,
-        ff_dim,
-        dropout=0.10
+        embed_dim=128,
+        num_heads=4,
+        ff_dim=256,
+        conv_kernel_size=5,
+        dropout=0.15
     ):
         super().__init__()
 
-        self.attention = layers.MultiHeadAttention(
+        # --- Self Attention ---
+        self.norm_attn = layers.LayerNormalization(epsilon=1e-6)
+        self.attn = layers.MultiHeadAttention(
             num_heads=num_heads,
-            key_dim=embed_dim // num_heads,
+            key_dim=max(16, embed_dim // num_heads),
             dropout=dropout
         )
+        self.dropout_attn = layers.Dropout(dropout)
 
+        # --- Depthwise Convolution Module ---
+        self.norm_conv = layers.LayerNormalization(epsilon=1e-6)
+        self.dw_conv = layers.Conv1D(
+            filters=embed_dim,
+            kernel_size=conv_kernel_size,
+            padding="same",
+            groups=embed_dim
+        )
+        self.bn_conv = layers.BatchNormalization()
+        self.act_conv = layers.Activation(tf.nn.gelu)
+        self.se_conv = SqueezeAndExcitation(embed_dim)
+        self.proj_conv = layers.Conv1D(filters=embed_dim, kernel_size=1, padding="same")
+        self.dropout_conv = layers.Dropout(dropout)
+
+        # --- Feed Forward Network ---
+        self.norm_ffn = layers.LayerNormalization(epsilon=1e-6)
         self.ffn = keras.Sequential([
-            layers.Dense(
-                ff_dim,
-                activation=tf.nn.gelu
-            ),
-
+            layers.Dense(ff_dim, activation=tf.nn.gelu),
             layers.Dropout(dropout),
-
-            layers.Dense(
-                embed_dim
-            )
+            layers.Dense(embed_dim),
+            layers.Dropout(dropout),
         ])
 
-        self.norm1 = layers.LayerNormalization(
-            epsilon=1e-6
-        )
-
-        self.norm2 = layers.LayerNormalization(
-            epsilon=1e-6
-        )
-
-        self.dropout1 = layers.Dropout(dropout)
-        self.dropout2 = layers.Dropout(dropout)
+        # --- Final LayerNorm ---
+        self.norm_out = layers.LayerNormalization(epsilon=1e-6)
 
     def call(self, x, training=False):
+        # 1. Multi-Head Self Attention (Pre-LN)
+        norm_x = self.norm_attn(x)
+        attn_out = self.attn(norm_x, norm_x, training=training)
+        x = x + self.dropout_attn(attn_out, training=training)
 
-        attention_output = self.attention(
-            x,
-            x,
-            training=training
-        )
+        # 2. Depthwise Convolution Module (Pre-LN)
+        conv_x = self.norm_conv(x)
+        conv_x = self.dw_conv(conv_x)
+        conv_x = self.bn_conv(conv_x, training=training)
+        conv_x = self.act_conv(conv_x)
+        conv_x = self.se_conv(conv_x)
+        conv_x = self.proj_conv(conv_x)
+        x = x + self.dropout_conv(conv_x, training=training)
 
-        x = self.norm1(
-            x + self.dropout1(
-                attention_output,
-                training=training
-            )
-        )
+        # 3. Feed Forward Network (Pre-LN)
+        x = x + self.ffn(self.norm_ffn(x), training=training)
 
-        ffn_output = self.ffn(
-            x,
-            training=training
-        )
-
-        x = self.norm2(
-            x + self.dropout2(
-                ffn_output,
-                training=training
-            )
-        )
-
-        return x
+        return self.norm_out(x)
 
 
 # ============================================================
-# Attention Pooling
+# Multi-Head Attention Pooling
 # ============================================================
 
-class AttentionPooling(layers.Layer):
+class MultiHeadAttentionPooling(layers.Layer):
+    """Multi-Head Attention Pooling over time dimension."""
 
-    def __init__(self, embed_dim):
+    def __init__(self, embed_dim, num_heads=4, dropout=0.10):
         super().__init__()
-
-        self.attention_score = layers.Dense(
-            1,
-            use_bias=False
+        self.query = self.add_weight(
+            name="query",
+            shape=(1, 1, embed_dim),
+            initializer="glorot_uniform",
+            trainable=True
         )
+        self.attn = layers.MultiHeadAttention(
+            num_heads=num_heads,
+            key_dim=max(16, embed_dim // num_heads),
+            dropout=dropout
+        )
+        self.norm = layers.LayerNormalization(epsilon=1e-6)
+
+    def call(self, x, training=False):
+        batch_size = tf.shape(x)[0]
+        query = tf.broadcast_to(
+            self.query,
+            [batch_size, 1, tf.shape(self.query)[-1]]
+        )
+        pooled = self.attn(query, x, x, training=training)
+        pooled = self.norm(pooled)
+        return tf.squeeze(pooled, axis=1)
+
+
+# ============================================================
+# Multi-Scale Temporal Feature Aggregation
+# ============================================================
+
+class TemporalStatsPooling(layers.Layer):
+    """Computes global mean and standard deviation across time steps."""
 
     def call(self, x):
-
-        # x shape:
-        # (batch, time, embed_dim)
-
-        scores = self.attention_score(x)
-
-        scores = tf.nn.softmax(
-            scores,
-            axis=1
-        )
-
-        weighted = x * scores
-
-        return tf.reduce_sum(
-            weighted,
-            axis=1
-        )
+        mean = tf.reduce_mean(x, axis=1)
+        variance = tf.reduce_mean(tf.square(x - tf.expand_dims(mean, 1)), axis=1)
+        std = tf.sqrt(tf.maximum(variance, 1e-6))
+        return tf.concat([mean, std], axis=-1)
 
 
 # ============================================================
-# Build Transformer
+# Build Advanced Acoustic Transformer Model
 # ============================================================
 
 def build_transformer(
     input_shape,
-    num_classes=NUM_CLASSES
+    num_classes=NUM_CLASSES,
+    embed_dim=128,
+    num_heads=4,
+    ff_dim=256,
+    num_layers=2,
+    conv_kernel_size=5,
+    dropout=0.15,
+    head_dropout=0.25
 ):
+    """Builds an Advanced Acoustic Conformer-Transformer model for Speech Emotion Recognition."""
 
-    inputs = layers.Input(
-        shape=input_shape
-    )
-
-    # --------------------------------------------------------
-    # Input projection
-    # --------------------------------------------------------
-
-    x = layers.Dense(
-        64,
-        activation=None
-    )(inputs)
-
-    x = layers.LayerNormalization()(x)
+    inputs = layers.Input(shape=input_shape, name="audio_features")
 
     # --------------------------------------------------------
-    # Positional information
+    # 1. Multi-Scale 1D Conv Pre-Net
     # --------------------------------------------------------
+    x_conv = MultiScaleConvBlock(filters=embed_dim, dropout=dropout)(inputs)
 
-    x = PositionalEmbedding(
-        max_length=input_shape[0],
-        embed_dim=64
-    )(x)
-
-    x = layers.Dropout(0.10)(x)
+    # Residual linear projection
+    x_proj = layers.Dense(embed_dim)(inputs)
+    x = layers.LayerNormalization(epsilon=1e-6)(x_conv + x_proj)
 
     # --------------------------------------------------------
-    # Transformer Encoder 1
+    # 2. Continuous Positional Encoding
     # --------------------------------------------------------
+    x = DepthwiseConvPositionalEncoding(embed_dim=embed_dim, kernel_size=3)(x)
+    x = layers.Dropout(dropout)(x)
 
-    x = TransformerEncoder(
-        embed_dim=64,
+    # --------------------------------------------------------
+    # 3. Conformer / Transformer Encoder Blocks
+    # --------------------------------------------------------
+    for i in range(num_layers):
+        x = ConformerBlock(
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            ff_dim=ff_dim,
+            conv_kernel_size=conv_kernel_size,
+            dropout=dropout
+        )(x)
+
+    # --------------------------------------------------------
+    # 4. Multi-Scale Temporal Feature Aggregation
+    # --------------------------------------------------------
+    attn_pooled = MultiHeadAttentionPooling(
+        embed_dim=embed_dim,
         num_heads=4,
-        ff_dim=128,
-        dropout=0.10
+        dropout=dropout
     )(x)
 
-    # --------------------------------------------------------
-    # Transformer Encoder 2
-    # --------------------------------------------------------
+    stats_pooled = TemporalStatsPooling()(x)
 
-    x = TransformerEncoder(
-        embed_dim=64,
-        num_heads=4,
-        ff_dim=128,
-        dropout=0.10
-    )(x)
+    pooled_features = layers.Concatenate(axis=-1)([attn_pooled, stats_pooled])
 
     # --------------------------------------------------------
-    # Attention pooling
+    # 5. Regularized Dense Classification Head
     # --------------------------------------------------------
+    h = layers.Dense(256)(pooled_features)
+    h = layers.LayerNormalization(epsilon=1e-6)(h)
+    h = layers.Activation(tf.nn.gelu)(h)
+    h = layers.Dropout(head_dropout)(h)
 
-    x = AttentionPooling(
-        embed_dim=64
-    )(x)
+    h = layers.Dense(128)(h)
+    h = layers.LayerNormalization(epsilon=1e-6)(h)
+    h = layers.Activation(tf.nn.gelu)(h)
+    h = layers.Dropout(head_dropout)(h)
 
-    # --------------------------------------------------------
-    # Classification head
-    # --------------------------------------------------------
+    outputs = layers.Dense(num_classes, activation="softmax", name="emotion_probabilities")(h)
 
-    x = layers.Dense(
-        64,
-        activation=tf.nn.gelu
-    )(x)
-
-    x = layers.Dropout(0.25)(x)
-
-    outputs = layers.Dense(
-        num_classes,
-        activation="softmax"
-    )(x)
-
-    # --------------------------------------------------------
-    # Model
-    # --------------------------------------------------------
-
-    model = keras.Model(
-        inputs,
-        outputs,
-        name="speech_transformer"
-    )
-
-    # --------------------------------------------------------
-    # Optimizer
-    # --------------------------------------------------------
-
-    optimizer = keras.optimizers.AdamW(
-        learning_rate=1e-4,
-        weight_decay=1e-5
-    )
-
-    model.compile(
-        optimizer=optimizer,
-        loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"]
-    )
+    model = keras.Model(inputs=inputs, outputs=outputs, name="advanced_acoustic_transformer")
 
     return model
