@@ -311,7 +311,7 @@ model = build_mft_transformer(
     num_heads=8,
     ff_dim=256,
     num_layers=4,
-    dropout=0.15
+    dropout=0.25
 )
 
 model.summary()
@@ -327,17 +327,21 @@ print("=" * 60)
 
 try:
     optimizer = keras.optimizers.AdamW(
-        learning_rate=2e-4,
-        weight_decay=1e-4
+        learning_rate=1e-4,
+        weight_decay=3e-4
     )
 except AttributeError:
     optimizer = keras.optimizers.Adam(
         learning_rate=2e-4
     )
 
+loss_fn = keras.losses.SparseCategoricalCrossentropy(
+    from_logits=False
+)
+
 model.compile(
     optimizer=optimizer,
-    loss="sparse_categorical_crossentropy",
+    loss=loss_fn,
     metrics=["accuracy"]
 )
 
@@ -642,7 +646,7 @@ with open(
     f.write("Attention heads: 8\n")
     f.write("Transformer blocks: 4\n")
     f.write("Feed-forward dimension: 256\n")
-    f.write("Transformer dropout: 0.15\n")
+    f.write("Transformer dropout: 0.25\n")
 
     f.write(
         f"Total parameters: {model.count_params():,}\n\n"
@@ -665,11 +669,11 @@ with open(
     )
 
     f.write(
-        "Initial learning rate: 0.0002\n"
+        "Initial learning rate: 0.0001\n"
     )
 
     f.write(
-        "Weight decay: 0.0001\n"
+        "Weight decay: 0.0003\n"
     )
 
     f.write(
