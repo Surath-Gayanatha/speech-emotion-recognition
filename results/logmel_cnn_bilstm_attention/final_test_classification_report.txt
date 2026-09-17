@@ -1,0 +1,27 @@
+Log-Mel CNN + BiLSTM + Self-Attention
+FINAL UNSEEN TEST EVALUATION
+======================================================================
+
+Test Loss: 1.443799
+Test Accuracy: 0.561432
+Macro Precision: 0.577574
+Macro Recall: 0.562876
+Macro F1: 0.558510
+Weighted Precision: 0.577170
+Weighted Recall: 0.561432
+Weighted F1: 0.557299
+
+Classification Report
+----------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+         ANG     0.5533    0.7667    0.6427       210
+         DIS     0.4601    0.6048    0.5226       210
+         FEA     0.5363    0.4571    0.4936       210
+         HAP     0.6450    0.5190    0.5752       210
+         NEU     0.5936    0.6201    0.6066       179
+         SAD     0.6772    0.4095    0.5104       210
+
+    accuracy                         0.5614      1229
+   macro avg     0.5776    0.5629    0.5585      1229
+weighted avg     0.5772    0.5614    0.5573      1229

@@ -1,0 +1,31 @@
+{
+    "model": "Log-Mel CNN + BiLSTM + Self-Attention",
+    "feature": "Log-Mel Spectrogram",
+    "input_shape": [
+        64,
+        174,
+        1
+    ],
+    "num_classes": 6,
+    "emotion_classes": [
+        "ANG",
+        "DIS",
+        "FEA",
+        "HAP",
+        "NEU",
+        "SAD"
+    ],
+    "test_samples": 1229,
+    "seed": 42,
+    "batch_size": 32,
+    "test_loss": 1.4437986612319946,
+    "test_accuracy": 0.5614320585842149,
+    "test_accuracy_percent": 56.14320585842149,
+    "macro_precision": 0.5775735062902778,
+    "macro_recall": 0.562875764831072,
+    "macro_f1": 0.5585104339005896,
+    "weighted_precision": 0.5771696895093843,
+    "weighted_recall": 0.5614320585842149,
+    "weighted_f1": 0.557298509378534,
+    "checkpoint": "results/logmel_cnn_bilstm_attention\\best_logmel_cnn_bilstm_attention.keras"
+}
