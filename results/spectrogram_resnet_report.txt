@@ -1,0 +1,26 @@
+Fine-Tuned Spectrogram ResNet-34 SER Test Results
+============================================================
+
+Test Accuracy: 41.90%
+
+Classification Report:
+              precision    recall  f1-score   support
+
+       Anger     0.4714    0.6667    0.5523       210
+     Disgust     0.3521    0.3571    0.3546       210
+        Fear     0.3600    0.4286    0.3913       210
+       Happy     0.4083    0.3286    0.3641       210
+     Neutral     0.4286    0.3855    0.4059       179
+         Sad     0.5180    0.3429    0.4126       210
+
+    accuracy                         0.4190      1229
+   macro avg     0.4231    0.4182    0.4135      1229
+weighted avg     0.4229    0.4190    0.4137      1229
+
+Confusion Matrix:
+[[140  27   8  24   9   2]
+ [ 36  75  40  13  24  22]
+ [ 43  20  90  21  13  23]
+ [ 55  17  46  69  20   3]
+ [ 12  30  26  25  69  17]
+ [ 11  44  40  17  26  72]]
