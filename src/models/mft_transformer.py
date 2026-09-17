@@ -12,7 +12,7 @@ class FeatureProjection(layers.Layer):
     def __init__(
         self,
         embed_dim=128,
-        dropout=0.15,
+        dropout=0.25,
         **kwargs
     ):
         super().__init__(**kwargs)
