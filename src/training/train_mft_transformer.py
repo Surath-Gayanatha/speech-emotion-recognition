@@ -48,6 +48,45 @@ MODEL_PATH = os.path.join(
     "mft_transformer_model.keras"
 )
 
+# ============================================================
+# RESULTS DIRECTORY
+# ============================================================
+
+RESULTS_DIR = "results/mft_transformer"
+
+os.makedirs(
+    RESULTS_DIR,
+    exist_ok=True
+)
+
+def get_result_filename():
+
+    base_name = "MFT_Transformer_Baseline_Results"
+    
+    filename = os.path.join(
+        RESULTS_DIR,
+        base_name + ".txt"
+    )
+
+    if not os.path.exists(filename):
+        return filename
+
+    counter = 2
+
+    while True:
+
+        filename = os.path.join(
+            RESULTS_DIR,
+            f"{base_name}_Run_{counter:02d}.txt"
+        )
+
+        if not os.path.exists(filename):
+            return filename
+
+        counter += 1
+
+
+
 BATCH_SIZE = 32
 EPOCHS = 50
 PATIENCE = 10
@@ -497,6 +536,19 @@ best_val_accuracy = max(
     history.history["val_accuracy"]
 )
 
+# ============================================================
+# TRAINING SUMMARY
+# ============================================================
+
+best_epoch = np.argmax(
+    history.history["val_accuracy"]
+) + 1
+
+best_val_accuracy = max(
+    history.history["val_accuracy"]
+)
+
+
 print("\n" + "=" * 60)
 print("TRAINING SUMMARY")
 print("=" * 60)
@@ -505,5 +557,266 @@ print(f"Best epoch       : {best_epoch}")
 print(f"Best val accuracy: {best_val_accuracy:.4f}")
 print(f"Test accuracy    : {accuracy:.4f}")
 print(f"Test F1-score    : {f1:.4f}")
+
+
+# ============================================================
+# SAVE RESULTS AUTOMATICALLY
+# ============================================================
+
+result_file = get_result_filename()
+
+print("\n" + "=" * 60)
+print("SAVING EXPERIMENT RESULTS")
+print("=" * 60)
+
+
+with open(
+    result_file,
+    "w",
+    encoding="utf-8"
+) as f:
+
+    f.write("MFT TRANSFORMER - EXPERIMENT RESULTS\n")
+    f.write("=" * 60 + "\n\n")
+
+    # --------------------------------------------------------
+    # Dataset
+    # --------------------------------------------------------
+
+    f.write("DATASET\n")
+    f.write("-" * 60 + "\n")
+
+    f.write("Dataset: CREMA-D\n")
+    f.write("Split method: Actor-based split\n\n")
+
+    f.write(
+        f"Total samples: {len(X)}\n"
+    )
+
+    f.write(
+        f"Training samples: {len(X_train)}\n"
+    )
+
+    f.write(
+        f"Validation samples: {len(X_val)}\n"
+    )
+
+    f.write(
+        f"Test samples: {len(X_test)}\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # Input Features
+    # --------------------------------------------------------
+
+    f.write("FEATURE CONFIGURATION\n")
+    f.write("-" * 60 + "\n")
+
+    f.write(
+        f"Input shape: {X_train.shape[1:]}\n"
+    )
+
+    f.write("Features:\n")
+    f.write("- MFCC\n")
+    f.write("- MFCC Delta\n")
+    f.write("- MFCC Delta-Delta\n")
+    f.write("- Log-Mel Spectrogram\n")
+    f.write("- Chroma\n")
+    f.write("- RMS Energy\n")
+    f.write("- Zero Crossing Rate\n")
+    f.write("- Spectral Centroid\n")
+    f.write("- Spectral Bandwidth\n")
+    f.write("- Spectral Rolloff\n\n")
+
+
+    # --------------------------------------------------------
+    # Model Configuration
+    # --------------------------------------------------------
+
+    f.write("MODEL CONFIGURATION\n")
+    f.write("-" * 60 + "\n")
+
+    f.write("Model: MFT Transformer\n")
+    f.write("Embedding dimension: 128\n")
+    f.write("Attention heads: 8\n")
+    f.write("Transformer blocks: 4\n")
+    f.write("Feed-forward dimension: 256\n")
+    f.write("Transformer dropout: 0.15\n")
+
+    f.write(
+        f"Total parameters: {model.count_params():,}\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # Training Configuration
+    # --------------------------------------------------------
+
+    f.write("TRAINING CONFIGURATION\n")
+    f.write("-" * 60 + "\n")
+
+    f.write(
+        f"Batch size: {BATCH_SIZE}\n"
+    )
+
+    f.write(
+        f"Maximum epochs: {EPOCHS}\n"
+    )
+
+    f.write(
+        "Initial learning rate: 0.0002\n"
+    )
+
+    f.write(
+        "Weight decay: 0.0001\n"
+    )
+
+    f.write(
+        f"Early stopping patience: {PATIENCE}\n"
+    )
+
+    f.write(
+        "ReduceLROnPlateau factor: 0.5\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # Best Training Result
+    # --------------------------------------------------------
+
+    f.write("BEST TRAINING RESULT\n")
+    f.write("-" * 60 + "\n")
+
+    f.write(
+        f"Best epoch: {best_epoch}\n"
+    )
+
+    f.write(
+        f"Best validation accuracy: "
+        f"{best_val_accuracy:.4f}\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # Test Metrics
+    # --------------------------------------------------------
+
+    f.write("FINAL TEST RESULTS\n")
+    f.write("-" * 60 + "\n")
+
+    f.write(
+        f"Accuracy : {accuracy:.4f}\n"
+    )
+
+    f.write(
+        f"Precision: {precision:.4f}\n"
+    )
+
+    f.write(
+        f"Recall   : {recall:.4f}\n"
+    )
+
+    f.write(
+        f"F1-score : {f1:.4f}\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # Classification Report
+    # --------------------------------------------------------
+
+    f.write("CLASSIFICATION REPORT\n")
+    f.write("-" * 60 + "\n")
+
+    report = classification_report(
+        y_test,
+        y_pred,
+        target_names=emotion_names,
+        zero_division=0
+    )
+
+    f.write(report)
+    f.write("\n")
+
+
+    # --------------------------------------------------------
+    # Confusion Matrix
+    # --------------------------------------------------------
+
+    f.write("CONFUSION MATRIX\n")
+    f.write("-" * 60 + "\n")
+
+    f.write(
+        np.array2string(cm)
+    )
+
+    f.write("\n\n")
+
+
+    # --------------------------------------------------------
+    # Training Interpretation
+    # --------------------------------------------------------
+
+    f.write("EXPERIMENT NOTES\n")
+    f.write("-" * 60 + "\n")
+
+    f.write(
+        "This experiment uses the MFT Transformer model "
+        "with multi-feature acoustic representations.\n"
+    )
+
+    f.write(
+        "The best model checkpoint was selected using "
+        "validation accuracy.\n"
+    )
+
+    f.write(
+        "The test set was evaluated using the restored "
+        "best model weights.\n"
+    )
+
+
+print(
+    f"\nResults automatically saved to:\n{result_file}"
+)
+
+
+# ============================================================
+# SAVE TRAINING HISTORY
+# ============================================================
+
+history_file = result_file.replace(
+    "_Results.txt",
+    "_History.csv"
+)
+
+history_data = np.column_stack([
+    np.arange(
+        1,
+        len(history.history["accuracy"]) + 1
+    ),
+
+    history.history["accuracy"],
+
+    history.history["val_accuracy"],
+
+    history.history["loss"],
+
+    history.history["val_loss"]
+])
+
+np.savetxt(
+    history_file,
+    history_data,
+    delimiter=",",
+    header="epoch,accuracy,val_accuracy,loss,val_loss",
+    comments="",
+    fmt="%.6f"
+)
+
+print(
+    f"Training history saved to:\n{history_file}"
+)
 
 print("\nTraining complete.")
