@@ -94,7 +94,7 @@ def build_cnn_bilstm_attention(
 
     attention_output = layers.MultiHeadAttention(
         num_heads=4,
-        key_dim=32,
+        key_dim=48,
         dropout=0.10
     )(
         query=x,

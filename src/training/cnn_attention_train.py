@@ -141,30 +141,16 @@ def main():
             f"Class {cls}: {count} samples"
         )
 
-    # ---------------------------------------------------------
-    # CLASS WEIGHTS
-    # IMPORTANT:
-    # Calculated ONLY from training data
-    # ---------------------------------------------------------
-
     classes = np.unique(y_train)
-
     class_weights_array = compute_class_weight(
         class_weight="balanced",
         classes=classes,
         y=y_train
     )
-
     class_weights = {
         int(cls): float(weight)
-        for cls, weight in zip(
-            classes,
-            class_weights_array
-        )
+        for cls, weight in zip(classes, class_weights_array)
     }
-
-    print("\nClass weights:")
-    print(class_weights)
 
     # ---------------------------------------------------------
     # BUILD MODEL
