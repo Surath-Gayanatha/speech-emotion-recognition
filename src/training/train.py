@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
+import yaml
 from sklearn.metrics import classification_report, confusion_matrix
 
 from src.config import (
@@ -14,7 +15,10 @@ from src.config import (
     NUM_CLASSES,
 )
 
+from src.models.bilstm import build_bilstm
 from src.models.cnn1d import build_cnn1d
+from src.models.lstm import build_lstm
+from src.models.mlp import build_mlp
 
 
 EMOTION_NAMES = [
@@ -33,7 +37,9 @@ def load_actor_ids(filename):
 
 
 def get_actor_id(filename):
-    return filename.split("_")[0]
+    if isinstance(filename, bytes):
+        filename = filename.decode("utf-8")
+    return str(filename).split("_")[0]
 
 
 def create_split_mask(filenames, actor_ids):
@@ -43,18 +49,75 @@ def create_split_mask(filenames, actor_ids):
     ])
 
 
+def normalize_feature_splits(splits):
+    """Standardize sequence features using training samples only."""
+    train_features = splits[0][0]
+    feature_mean = train_features.mean(axis=(0, 1), keepdims=True)
+    feature_std = train_features.std(axis=(0, 1), keepdims=True)
+    feature_std = np.where(feature_std < 1e-6, 1.0, feature_std)
+    return [
+        ((split_features - feature_mean) / feature_std, split_labels)
+        for split_features, split_labels in splits
+    ]
+
+
+def load_config(config_path):
+    with Path(config_path).open(encoding="utf-8") as file:
+        config = yaml.safe_load(file) or {}
+    return config
+
+
+def load_data():
+    features = np.load(DATA_PROCESSED_DIR / "features.npy")
+    labels = np.load(DATA_PROCESSED_DIR / "labels.npy")
+    filenames = np.load(DATA_PROCESSED_DIR / "filenames.npy")
+
+    features = np.transpose(features, (0, 2, 1))
+    train_actors = load_actor_ids("train_actors.txt")
+    val_actors = load_actor_ids("val_actors.txt")
+    test_actors = load_actor_ids("test_actors.txt")
+
+    masks = [
+        create_split_mask(filenames, actors)
+        for actors in (train_actors, val_actors, test_actors)
+    ]
+    splits = [
+        (features[mask], labels[mask])
+        for mask in masks
+    ]
+
+    return normalize_feature_splits(splits)
+
+
+def build_model(model_name, input_shape):
+    builders = {
+        "mlp": build_mlp,
+        "cnn1d": build_cnn1d,
+        "lstm": build_lstm,
+        "bilstm": build_bilstm,
+    }
+    if model_name not in builders:
+        raise ValueError(f"Unsupported model '{model_name}'. Choose from: {', '.join(builders)}")
+    if model_name == "mlp" and len(input_shape) > 1:
+        input_shape = (input_shape[0] * input_shape[1],)
+    return builders[model_name](input_shape=input_shape, num_classes=NUM_CLASSES)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="cnn1d")
-    parser.add_argument("--config", default="configs/cnn1d.yaml")
+    parser.add_argument("--model", choices=["mlp", "cnn1d", "lstm", "bilstm"], default="cnn1d")
+    parser.add_argument("--config", default=None)
     args = parser.parse_args()
 
-    if args.model != "cnn1d":
-        raise ValueError("This training script currently supports cnn1d only.")
+    config_path = args.config or f"configs/{args.model}.yaml"
+    config = load_config(config_path)
+    if config.get("model") != args.model:
+        raise ValueError(f"Config {config_path} is for {config.get('model')!r}, not {args.model!r}.")
 
     # Reproducibility
-    np.random.seed(RANDOM_SEED)
-    tf.random.set_seed(RANDOM_SEED)
+    seed = int(config.get("seed", RANDOM_SEED))
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
 
     # Create output folders
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -63,44 +126,12 @@ def main():
     # Load processed data
     print("Loading processed features...")
 
-    features = np.load(DATA_PROCESSED_DIR / "features.npy")
-    labels = np.load(DATA_PROCESSED_DIR / "labels.npy")
-    filenames = np.load(DATA_PROCESSED_DIR / "filenames.npy")
-
-    print(f"Original features shape: {features.shape}")
-    print(f"Labels shape: {labels.shape}")
-
-    # ---------------------------------------------------------
-    # IMPORTANT:
-    # Extracted features are:
-    # (samples, n_features, time_steps)
-    #
-    # CNN expects:
-    # (samples, time_steps, n_features)
-    # ---------------------------------------------------------
-
-    features = np.transpose(features, (0, 2, 1))
-
-    print(f"CNN input shape: {features.shape}")
-
-    # Load actor-level splits
-    train_actors = load_actor_ids("train_actors.txt")
-    val_actors = load_actor_ids("val_actors.txt")
-    test_actors = load_actor_ids("test_actors.txt")
-
-    # Create masks
-    train_mask = create_split_mask(filenames, train_actors)
-    val_mask = create_split_mask(filenames, val_actors)
-    test_mask = create_split_mask(filenames, test_actors)
-
-    X_train = features[train_mask]
-    y_train = labels[train_mask]
-
-    X_val = features[val_mask]
-    y_val = labels[val_mask]
-
-    X_test = features[test_mask]
-    y_test = labels[test_mask]
+    (X_train, y_train), (X_val, y_val), (X_test, y_test) = load_data()
+    if args.model == "mlp":
+        X_train = X_train.reshape(len(X_train), -1)
+        X_val = X_val.reshape(len(X_val), -1)
+        X_test = X_test.reshape(len(X_test), -1)
+    print(f"Features shape: {X_train.shape[1:]}")
 
     print()
     print("Dataset split:")
@@ -108,24 +139,32 @@ def main():
     print(f"Val:   {X_val.shape} | Labels: {y_val.shape}")
     print(f"Test:  {X_test.shape} | Labels: {y_test.shape}")
 
-    # Build CNN1D
+    # Build the selected architecture using the shared actor-level split.
     print()
-    print("Building CNN1D model...")
+    print(f"Building {args.model.upper()} model...")
 
-    model = build_cnn1d(
-        input_shape=(X_train.shape[1], X_train.shape[2]),
-        num_classes=NUM_CLASSES,
-    )
+    model = build_model(args.model, X_train.shape[1:])
+    if hasattr(model.optimizer, "learning_rate"):
+        model.optimizer.learning_rate.assign(float(config.get("learning_rate", 0.001)))
 
     model.summary()
 
     # Callbacks
-    checkpoint_path = MODELS_DIR / "cnn1d_best.keras"
+    model_dir = MODELS_DIR / args.model
+    model_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = model_dir / f"{args.model}_best.keras"
 
     callbacks = [
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="val_loss",
+            factor=0.5,
+            patience=4,
+            min_lr=1e-6,
+            verbose=1,
+        ),
         tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
-            patience=8,
+            patience=int(config.get("early_stopping_patience", 8)),
             restore_best_weights=True,
             verbose=1,
         ),
@@ -140,21 +179,21 @@ def main():
     # Train
     print()
     print("=" * 60)
-    print("STARTING CNN1D TRAINING")
+    print(f"STARTING {args.model.upper()} TRAINING")
     print("=" * 60)
 
     history = model.fit(
         X_train,
         y_train,
         validation_data=(X_val, y_val),
-        epochs=60,
-        batch_size=32,
+        epochs=int(config.get("epochs", 60)),
+        batch_size=int(config.get("batch_size", 32)),
         callbacks=callbacks,
         verbose=1,
     )
 
     # Save final model
-    final_model_path = MODELS_DIR / "cnn1d_final.keras"
+    final_model_path = model_dir / f"{args.model}_final.keras"
     model.save(final_model_path)
 
     # Evaluate on test set
@@ -200,10 +239,10 @@ def main():
     print(cm)
 
     # Save metrics
-    report_path = RESULTS_DIR / "cnn1d_classification_report.txt"
+    report_path = RESULTS_DIR / f"{args.model}_classification_report.txt"
 
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write("CNN1D Speech Emotion Recognition Results\n")
+        f.write(f"{args.model.upper()} Speech Emotion Recognition Results\n")
         f.write("=" * 60 + "\n\n")
         f.write(f"Test Loss: {test_loss:.4f}\n")
         f.write(f"Test Accuracy: {test_accuracy:.4f}\n")
@@ -216,7 +255,7 @@ def main():
         f.write(str(cm))
 
     # Save training history
-    history_path = RESULTS_DIR / "cnn1d_history.npz"
+    history_path = RESULTS_DIR / f"{args.model}_history.npz"
 
     np.savez(
         history_path,

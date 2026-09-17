@@ -1,0 +1,5 @@
+{
+    "model_name": "Spectrogram ResNet-34 (Transfer Learning)",
+    "test_accuracy": 0.41903986981285596,
+    "best_val_accuracy": 0.4924953095684803
+}

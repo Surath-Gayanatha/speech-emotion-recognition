@@ -1,48 +1,36 @@
 """
-CREMA-D MFCC Feature Extraction Pipeline
-=========================================
+CREMA-D Log-Mel Spectrogram Feature Extraction
+================================================
 
 Purpose
 -------
-Extract acoustic features from the original CREMA-D AudioWAV dataset
-for speaker/actor-independent speech emotion classification.
+Extract Log-Mel Spectrogram features from the original
+CREMA-D AudioWAV dataset for actor-independent
+speech emotion classification.
 
 Feature representation
 ----------------------
-40 MFCC
-+ 40 Delta MFCC
-+ 40 Delta-Delta MFCC
-= 120 acoustic feature channels
+64 Mel frequency bands
+x
+174 fixed time frames
 
-Experimental methodology
-------------------------
+Methodology
+-----------
 1. Original CREMA-D WAV files are used.
 2. Audio is converted to mono and resampled to 16 kHz.
-3. Actor-independent train/validation/test splits are enforced.
-4. Actor overlap between splits is checked to prevent leakage.
-5. MFCC, delta and delta-delta features are extracted.
-6. Feature sequences are truncated/padded to a fixed temporal length.
-7. Normalization statistics are calculated from TRAINING DATA ONLY.
-8. Padding values are excluded from normalization statistics.
-9. The training mean/std are applied to validation and test sets.
-10. Class distributions and extraction metadata are saved.
-11. A fixed random seed is used for reproducibility.
-
-Important
----------
-The saved combined features.npy file is provided only for compatibility
-with older project scripts. For the final assignment experiments, models
-should load the separate train/validation/test files from data/processed/mfcc.
+3. Actor-independent train/validation/test splits are used.
+4. Actor overlap is checked to prevent leakage.
+5. Log-Mel Spectrogram features are extracted.
+6. Features are truncated before normalization.
+7. Training mean/std are calculated from TRAIN ONLY.
+8. Validation and test use TRAIN normalization statistics.
+9. Padding is applied AFTER normalization.
+10. Metadata and split information are saved.
 
 Usage
 -----
-    python -m src.features.extract_features
+python -m src.features.extract_logmel_features
 """
-
-
-# ============================================================
-# IMPORTS
-# ============================================================
 
 from pathlib import Path
 import json
@@ -57,12 +45,13 @@ from src.config import (
     DATA_PROCESSED_DIR,
     SPLITS_DIR,
     SAMPLE_RATE,
-    N_MFCC,
     N_FFT,
     HOP_LENGTH,
     MAX_PAD_LEN,
-    USE_DELTA,
-    USE_DELTA_DELTA,
+    N_MELS,
+    FMIN,
+    FMAX,
+    USE_LOG_MEL,
     EMOTION_LABELS,
     RANDOM_SEED,
     MONO_AUDIO,
@@ -85,20 +74,18 @@ np.random.seed(SEED)
 # ============================================================
 
 RAW_DIR = Path(DATA_RAW_DIR)
-
 PROCESSED_DIR = Path(DATA_PROCESSED_DIR)
-
 SPLIT_DIR = Path(SPLITS_DIR)
 
-MFCC_DIR = PROCESSED_DIR / "mfcc"
+# IMPORTANT:
+# Use a separate directory so existing MFCC files are untouched.
+LOGMEL_DIR = PROCESSED_DIR / "logmel"
 
-NORMALIZATION_DIR = (
-    PROCESSED_DIR / "normalization"
-)
+NORMALIZATION_DIR = LOGMEL_DIR / "normalization"
 
 
 # ============================================================
-# LABEL MAPPINGS
+# LABEL MAPPING
 # ============================================================
 
 LABEL_TO_EMOTION = {
@@ -108,20 +95,11 @@ LABEL_TO_EMOTION = {
 
 
 # ============================================================
-# DIRECTORY CREATION
+# CREATE DIRECTORIES
 # ============================================================
 
 def create_directories():
-    """
-    Create all required output directories.
-    """
-
-    PROCESSED_DIR.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    MFCC_DIR.mkdir(
+    LOGMEL_DIR.mkdir(
         parents=True,
         exist_ok=True
     )
@@ -138,25 +116,12 @@ def create_directories():
 
 def load_actor_ids(filename):
     """
-    Load actor IDs from an actor split file.
-
-    Example file:
-
-        1001
-        1002
-        1003
-        ...
-
-    Returns
-    -------
-    set
-        Set of actor IDs represented as strings.
+    Load actor IDs from actor split file.
     """
 
     split_path = SPLIT_DIR / filename
 
     if not split_path.exists():
-
         raise FileNotFoundError(
             f"Actor split file not found: {split_path}"
         )
@@ -174,7 +139,6 @@ def load_actor_ids(filename):
         }
 
     if not actors:
-
         raise ValueError(
             f"Actor split file is empty: {split_path}"
         )
@@ -183,7 +147,7 @@ def load_actor_ids(filename):
 
 
 # ============================================================
-# ACTOR SPLIT LEAKAGE CHECK
+# VALIDATE ACTOR SPLITS
 # ============================================================
 
 def validate_actor_splits(
@@ -191,46 +155,32 @@ def validate_actor_splits(
     val_actors,
     test_actors
 ):
-    """
-    Verify that no actor appears in more than one split.
 
-    This is critical for speaker-independent evaluation.
-    """
-
-    train_val = (
-        train_actors.intersection(
-            val_actors
-        )
+    train_val = train_actors.intersection(
+        val_actors
     )
 
-    train_test = (
-        train_actors.intersection(
-            test_actors
-        )
+    train_test = train_actors.intersection(
+        test_actors
     )
 
-    val_test = (
-        val_actors.intersection(
-            test_actors
-        )
+    val_test = val_actors.intersection(
+        test_actors
     )
 
     if train_val:
-
         raise ValueError(
             "Actor leakage detected between "
             f"TRAIN and VALIDATION: {sorted(train_val)}"
         )
 
     if train_test:
-
         raise ValueError(
             "Actor leakage detected between "
             f"TRAIN and TEST: {sorted(train_test)}"
         )
 
     if val_test:
-
         raise ValueError(
             "Actor leakage detected between "
             f"VALIDATION and TEST: {sorted(val_test)}"
@@ -249,20 +199,10 @@ def validate_actor_splits(
 # ============================================================
 
 def parse_actor_id(file_path):
-    """
-    Extract actor ID from a CREMA-D filename.
-
-    Example:
-        1001_DFA_ANG_XX.wav
-
-    Actor ID:
-        1001
-    """
 
     parts = file_path.stem.split("_")
 
     if len(parts) < 4:
-
         raise ValueError(
             f"Invalid CREMA-D filename: "
             f"{file_path.name}"
@@ -276,20 +216,10 @@ def parse_actor_id(file_path):
 # ============================================================
 
 def parse_label(file_path):
-    """
-    Extract emotion label from a CREMA-D filename.
-
-    Example:
-        1001_DFA_ANG_XX.wav
-
-    Emotion code:
-        ANG
-    """
 
     parts = file_path.stem.split("_")
 
     if len(parts) < 4:
-
         raise ValueError(
             f"Invalid CREMA-D filename: "
             f"{file_path.name}"
@@ -298,16 +228,13 @@ def parse_label(file_path):
     emotion_code = parts[2]
 
     if emotion_code not in EMOTION_LABELS:
-
         raise ValueError(
             f"Unknown emotion code "
             f"'{emotion_code}' in "
             f"{file_path.name}"
         )
 
-    return EMOTION_LABELS[
-        emotion_code
-    ]
+    return EMOTION_LABELS[emotion_code]
 
 
 # ============================================================
@@ -315,10 +242,6 @@ def parse_label(file_path):
 # ============================================================
 
 def load_audio(file_path):
-    """
-    Load an audio file as mono and resample it
-    to the configured sampling rate.
-    """
 
     audio, sample_rate = librosa.load(
         file_path,
@@ -327,17 +250,13 @@ def load_audio(file_path):
     )
 
     if audio is None or len(audio) == 0:
-
         raise ValueError(
             "Audio signal is empty."
         )
 
-    duration = (
-        len(audio) / sample_rate
-    )
+    duration = len(audio) / sample_rate
 
     if duration < MIN_AUDIO_DURATION:
-
         raise ValueError(
             f"Audio too short: "
             f"{duration:.4f} seconds"
@@ -347,141 +266,43 @@ def load_audio(file_path):
 
 
 # ============================================================
-# SAFE DELTA CALCULATION
+# EXTRACT LOG-MEL SPECTROGRAM
 # ============================================================
 
-def calculate_delta(
-    mfcc,
-    order
-):
-    """
-    Calculate delta or delta-delta features safely.
+def extract_logmel(audio):
 
-    Very short audio clips can contain too few frames for
-    librosa's default delta window. This function adapts the
-    width while preserving the requested derivative order.
-    """
+    mel_spectrogram = librosa.feature.melspectrogram(
+        y=audio,
+        sr=SAMPLE_RATE,
+        n_fft=N_FFT,
+        hop_length=HOP_LENGTH,
+        n_mels=N_MELS,
+        fmin=FMIN,
+        fmax=FMAX,
+        power=2.0
+    )
 
-    n_frames = mfcc.shape[1]
+    if USE_LOG_MEL:
 
-    # Delta calculation requires an odd width.
-    # Use the largest suitable odd window up to 9.
-
-    if n_frames >= 9:
-
-        width = 9
-
-    elif n_frames >= 7:
-
-        width = 7
-
-    elif n_frames >= 5:
-
-        width = 5
-
-    elif n_frames >= 3:
-
-        width = 3
+        log_mel = librosa.power_to_db(
+            mel_spectrogram,
+            ref=np.max
+        )
 
     else:
 
-        # Extremely short sequence.
-        # Return zeros instead of crashing.
-        return np.zeros_like(
-            mfcc,
-            dtype=np.float32
-        )
+        log_mel = mel_spectrogram
 
-    return librosa.feature.delta(
-        mfcc,
-        order=order,
-        width=width
-    )
-
-
-# ============================================================
-# EXTRACT MFCC FEATURES
-# ============================================================
-
-def extract_mfcc(audio):
-    """
-    Extract MFCC + delta + delta-delta features.
-
-    Output
-    ------
-    np.ndarray
-
-        Shape:
-            (feature_channels, time_frames)
-
-        Normally:
-            (120, variable_time)
-    """
-
-    mfcc = librosa.feature.mfcc(
-        y=audio,
-        sr=SAMPLE_RATE,
-        n_mfcc=N_MFCC,
-        n_fft=N_FFT,
-        hop_length=HOP_LENGTH
-    )
-
-    feature_stack = [
-        mfcc
-    ]
-
-    # --------------------------------------------------------
-    # First-order derivative
-    # --------------------------------------------------------
-
-    if USE_DELTA:
-
-        delta = calculate_delta(
-            mfcc,
-            order=1
-        )
-
-        feature_stack.append(
-            delta
-        )
-
-    # --------------------------------------------------------
-    # Second-order derivative
-    # --------------------------------------------------------
-
-    if USE_DELTA_DELTA:
-
-        delta_delta = calculate_delta(
-            mfcc,
-            order=2
-        )
-
-        feature_stack.append(
-            delta_delta
-        )
-
-    features = np.vstack(
-        feature_stack
-    )
-
-    return features.astype(
+    return log_mel.astype(
         np.float32
     )
 
 
 # ============================================================
-# TRUNCATE TO MAXIMUM LENGTH
+# TRUNCATE FEATURE
 # ============================================================
 
 def truncate_features(features):
-    """
-    Truncate sequences longer than MAX_PAD_LEN.
-
-    Padding is intentionally NOT performed here.
-
-    This allows normalization statistics to be calculated
-    without including artificial zero-padding values.
-    """
 
     if features.shape[1] > MAX_PAD_LEN:
 
@@ -494,23 +315,12 @@ def truncate_features(features):
 
 
 # ============================================================
-# PAD TO FIXED LENGTH
+# PAD FEATURE
 # ============================================================
 
 def pad_features(features):
-    """
-    Zero-pad a feature sequence to MAX_PAD_LEN.
 
-    Input:
-        (feature_channels, time)
-
-    Output:
-        (feature_channels, MAX_PAD_LEN)
-    """
-
-    current_length = (
-        features.shape[1]
-    )
+    current_length = features.shape[1]
 
     if current_length >= MAX_PAD_LEN:
 
@@ -541,34 +351,22 @@ def pad_features(features):
 # ============================================================
 
 def process_audio_file(file_path):
-    """
-    Load audio and extract raw acoustic features.
-
-    Returns
-    -------
-    features
-    label
-    actor_id
-    filename
-    valid_frames
-    """
 
     audio = load_audio(
         file_path
     )
 
-    features = extract_mfcc(
+    features = extract_logmel(
         audio
     )
 
+    # IMPORTANT:
     # Truncate BEFORE normalization.
     features = truncate_features(
         features
     )
 
-    valid_frames = (
-        features.shape[1]
-    )
+    valid_frames = features.shape[1]
 
     label = parse_label(
         file_path
@@ -579,9 +377,7 @@ def process_audio_file(file_path):
     )
 
     return (
-        features.astype(
-            np.float32
-        ),
+        features.astype(np.float32),
         label,
         actor_id,
         file_path.stem,
@@ -594,9 +390,6 @@ def process_audio_file(file_path):
 # ============================================================
 
 def get_split_files(actor_ids):
-    """
-    Select WAV files belonging to the specified actors.
-    """
 
     all_files = sorted(
         RAW_DIR.glob("*.wav")
@@ -633,31 +426,12 @@ def extract_split(
     actor_ids,
     split_name
 ):
-    """
-    Extract raw features for one actor split.
-
-    Returns
-    -------
-    features : list[np.ndarray]
-        Variable-length feature matrices.
-
-    labels : np.ndarray
-
-    actors : np.ndarray
-
-    filenames : np.ndarray
-
-    valid_lengths : np.ndarray
-
-    skipped_files : list
-    """
 
     files = get_split_files(
         actor_ids
     )
 
     if not files:
-
         raise RuntimeError(
             f"No WAV files found for "
             f"{split_name} split."
@@ -666,7 +440,7 @@ def extract_split(
     print()
     print("=" * 70)
     print(
-        f"{split_name.upper()} FEATURE EXTRACTION"
+        f"{split_name.upper()} LOG-MEL EXTRACTION"
     )
     print("=" * 70)
 
@@ -679,15 +453,10 @@ def extract_split(
     )
 
     features = []
-
     labels = []
-
     actors = []
-
     filenames = []
-
     valid_lengths = []
-
     skipped_files = []
 
     for file_path in tqdm(
@@ -707,22 +476,10 @@ def extract_split(
                 file_path
             )
 
-            features.append(
-                feat
-            )
-
-            labels.append(
-                label
-            )
-
-            actors.append(
-                actor_id
-            )
-
-            filenames.append(
-                filename
-            )
-
+            features.append(feat)
+            labels.append(label)
+            actors.append(actor_id)
+            filenames.append(filename)
             valid_lengths.append(
                 valid_frames
             )
@@ -773,11 +530,6 @@ def extract_split(
     )
 
     print(
-        f"{split_name} labels shape: "
-        f"{labels.shape}"
-    )
-
-    print(
         f"{split_name} skipped files: "
         f"{len(skipped_files)}"
     )
@@ -803,26 +555,12 @@ def extract_split(
 
 
 # ============================================================
-# CALCULATE TRAINING NORMALIZATION STATISTICS
+# CALCULATE TRAINING STATISTICS
 # ============================================================
 
 def calculate_training_statistics(
     train_features
 ):
-    """
-    Calculate per-channel mean and standard deviation
-    using TRAINING DATA ONLY.
-
-    IMPORTANT:
-        Artificial zero-padding is excluded.
-
-    Statistics are calculated across:
-        - training samples
-        - valid time frames
-
-    Result:
-        one mean/std value for each feature channel.
-    """
 
     if not train_features:
 
@@ -830,25 +568,19 @@ def calculate_training_statistics(
             "Training feature list is empty."
         )
 
-    n_channels = (
-        train_features[0].shape[0]
-    )
+    n_mels = train_features[0].shape[0]
 
     channel_sum = np.zeros(
-        n_channels,
+        n_mels,
         dtype=np.float64
     )
 
     channel_squared_sum = np.zeros(
-        n_channels,
+        n_mels,
         dtype=np.float64
     )
 
     total_frames = 0
-
-    # --------------------------------------------------------
-    # First pass: sum and squared sum
-    # --------------------------------------------------------
 
     for features in train_features:
 
@@ -869,9 +601,7 @@ def calculate_training_statistics(
             dtype=np.float64
         )
 
-        total_frames += (
-            valid.shape[1]
-        )
+        total_frames += valid.shape[1]
 
     if total_frames == 0:
 
@@ -889,7 +619,6 @@ def calculate_training_statistics(
         total_frames
     ) - np.square(mean)
 
-    # Numerical safety.
     variance = np.maximum(
         variance,
         0.0
@@ -899,47 +628,35 @@ def calculate_training_statistics(
         variance
     )
 
-    # Avoid division by zero.
     std = np.where(
         std < 1e-8,
         1.0,
         std
     )
 
-    mean = mean.astype(
-        np.float32
-    )
-
-    std = std.astype(
-        np.float32
-    )
-
     return (
-        mean,
-        std
+        mean.astype(np.float32),
+        std.astype(np.float32)
     )
 
 
 # ============================================================
-# NORMALIZE VARIABLE-LENGTH FEATURES
+# NORMALIZE FEATURES
 # ============================================================
 
-def normalize_variable_features(
+def normalize_features(
     feature_list,
     mean,
     std
 ):
-    """
-    Normalize variable-length feature sequences using
-    training-set statistics.
-    """
 
     normalized_features = []
 
     for features in feature_list:
 
         normalized = (
-            features - mean[:, None]
+            features -
+            mean[:, None]
         ) / std[:, None]
 
         normalized_features.append(
@@ -958,13 +675,6 @@ def normalize_variable_features(
 def pad_normalized_features(
     feature_list
 ):
-    """
-    Convert variable-length normalized sequences into
-    fixed-size arrays.
-
-    Output:
-        (N, feature_channels, MAX_PAD_LEN)
-    """
 
     padded_features = []
 
@@ -986,16 +696,13 @@ def pad_normalized_features(
 
 
 # ============================================================
-# SAVE NORMALIZATION STATISTICS
+# SAVE NORMALIZATION
 # ============================================================
 
 def save_normalization_statistics(
     mean,
     std
 ):
-    """
-    Save training-only normalization statistics.
-    """
 
     np.save(
         NORMALIZATION_DIR /
@@ -1011,12 +718,13 @@ def save_normalization_statistics(
 
     print()
     print(
-        "Training normalization statistics saved."
+        "Log-Mel training normalization "
+        "statistics saved."
     )
 
 
 # ============================================================
-# SAVE SPLIT DATA
+# SAVE SPLIT
 # ============================================================
 
 def save_split(
@@ -1027,36 +735,33 @@ def save_split(
     filenames,
     valid_lengths
 ):
-    """
-    Save processed features and metadata for one split.
-    """
 
     np.save(
-        MFCC_DIR /
+        LOGMEL_DIR /
         f"{split_name}_features.npy",
         features
     )
 
     np.save(
-        MFCC_DIR /
+        LOGMEL_DIR /
         f"{split_name}_labels.npy",
         labels
     )
 
     np.save(
-        MFCC_DIR /
+        LOGMEL_DIR /
         f"{split_name}_actors.npy",
         actors
     )
 
     np.save(
-        MFCC_DIR /
+        LOGMEL_DIR /
         f"{split_name}_filenames.npy",
         filenames
     )
 
     np.save(
-        MFCC_DIR /
+        LOGMEL_DIR /
         f"{split_name}_valid_lengths.npy",
         valid_lengths
     )
@@ -1066,12 +771,7 @@ def save_split(
 # CLASS DISTRIBUTION
 # ============================================================
 
-def get_class_distribution(
-    labels
-):
-    """
-    Calculate the number of samples per emotion class.
-    """
+def get_class_distribution(labels):
 
     distribution = {}
 
@@ -1096,36 +796,32 @@ def get_class_distribution(
     return distribution
 
 
-# ============================================================
-# SAVE CLASS DISTRIBUTION
-# ============================================================
-
 def save_class_distribution(
     train_labels,
     val_labels,
     test_labels
 ):
-    """
-    Save class distribution for all splits.
-    """
 
     distribution = {
 
-        "train": get_class_distribution(
-            train_labels
-        ),
+        "train":
+            get_class_distribution(
+                train_labels
+            ),
 
-        "validation": get_class_distribution(
-            val_labels
-        ),
+        "validation":
+            get_class_distribution(
+                val_labels
+            ),
 
-        "test": get_class_distribution(
-            test_labels
-        )
+        "test":
+            get_class_distribution(
+                test_labels
+            )
     }
 
     output_path = (
-        PROCESSED_DIR /
+        LOGMEL_DIR /
         "class_distribution.json"
     )
 
@@ -1143,7 +839,7 @@ def save_class_distribution(
 
     print()
     print("=" * 70)
-    print("CLASS DISTRIBUTION")
+    print("LOG-MEL CLASS DISTRIBUTION")
     print("=" * 70)
 
     for split, values in (
@@ -1151,9 +847,7 @@ def save_class_distribution(
     ):
 
         print()
-        print(
-            split.upper()
-        )
+        print(split.upper())
 
         for emotion, count in (
             values.items()
@@ -1177,103 +871,97 @@ def save_metadata(
     test_lengths,
     skipped_files
 ):
-    """
-    Save feature extraction configuration and
-    dataset processing metadata.
-    """
 
     metadata = {
 
-        "dataset": "CREMA-D",
+        "dataset":
+            "CREMA-D",
 
-        "sample_rate": SAMPLE_RATE,
+        "feature_type":
+            "Log-Mel Spectrogram",
 
-        "mono_audio": MONO_AUDIO,
+        "sample_rate":
+            SAMPLE_RATE,
 
-        "min_audio_duration": (
-            MIN_AUDIO_DURATION
-        ),
+        "mono_audio":
+            MONO_AUDIO,
 
-        "n_mfcc": N_MFCC,
+        "n_mels":
+            N_MELS,
 
-        "use_delta": USE_DELTA,
+        "n_fft":
+            N_FFT,
 
-        "use_delta_delta": (
-            USE_DELTA_DELTA
-        ),
+        "hop_length":
+            HOP_LENGTH,
 
-        "n_fft": N_FFT,
+        "fmin":
+            FMIN,
 
-        "hop_length": HOP_LENGTH,
+        "fmax":
+            FMAX,
 
-        "max_pad_len": MAX_PAD_LEN,
+        "use_log_mel":
+            USE_LOG_MEL,
 
-        "feature_channels": (
-            int(
-                train_features[0].shape[0]
-            )
-        ),
+        "max_pad_len":
+            MAX_PAD_LEN,
 
-        "train_samples": (
-            len(train_features)
-        ),
+        "feature_shape":
+            [
+                N_MELS,
+                MAX_PAD_LEN
+            ],
 
-        "validation_samples": (
-            len(val_features)
-        ),
+        "train_samples":
+            len(train_features),
 
-        "test_samples": (
-            len(test_features)
-        ),
+        "validation_samples":
+            len(val_features),
 
-        "train_min_valid_frames": (
-            int(train_lengths.min())
-        ),
+        "test_samples":
+            len(test_features),
 
-        "train_max_valid_frames": (
-            int(train_lengths.max())
-        ),
+        "train_min_valid_frames":
+            int(train_lengths.min()),
 
-        "validation_min_valid_frames": (
-            int(val_lengths.min())
-        ),
+        "train_max_valid_frames":
+            int(train_lengths.max()),
 
-        "validation_max_valid_frames": (
-            int(val_lengths.max())
-        ),
+        "validation_min_valid_frames":
+            int(val_lengths.min()),
 
-        "test_min_valid_frames": (
-            int(test_lengths.min())
-        ),
+        "validation_max_valid_frames":
+            int(val_lengths.max()),
 
-        "test_max_valid_frames": (
-            int(test_lengths.max())
-        ),
+        "test_min_valid_frames":
+            int(test_lengths.min()),
 
-        "split_strategy": (
-            "Actor-independent"
-        ),
+        "test_max_valid_frames":
+            int(test_lengths.max()),
 
-        "normalization": (
-            "Per-feature-channel mean/std"
-        ),
+        "split_strategy":
+            "Actor-independent",
 
-        "normalization_source": (
-            "Training data only"
-        ),
+        "normalization":
+            "Per-Mel-band mean/std",
 
-        "padding_excluded_from_statistics": (
-            True
-        ),
+        "normalization_source":
+            "Training data only",
 
-        "random_seed": SEED,
+        "padding_excluded_from_statistics":
+            True,
 
-        "skipped_files": skipped_files
+        "random_seed":
+            SEED,
+
+        "skipped_files":
+            skipped_files
     }
 
     output_path = (
-        PROCESSED_DIR /
-        "feature_extraction_metadata.json"
+        LOGMEL_DIR /
+        "metadata.json"
     )
 
     with open(
@@ -1290,12 +978,13 @@ def save_metadata(
 
     print()
     print(
-        f"Metadata saved to: {output_path}"
+        f"Metadata saved to: "
+        f"{output_path}"
     )
 
 
 # ============================================================
-# CHECK FINAL DATA
+# FINAL VALIDATION
 # ============================================================
 
 def validate_final_data(
@@ -1306,28 +995,9 @@ def validate_final_data(
     val_labels,
     test_labels
 ):
-    """
-    Perform final sanity checks before saving.
-    """
-
-    # --------------------------------------------------------
-    # Feature shapes
-    # --------------------------------------------------------
-
-    expected_channels = 0
-
-    if USE_DELTA:
-
-        expected_channels += N_MFCC
-
-    if USE_DELTA_DELTA:
-
-        expected_channels += N_MFCC
-
-    expected_channels += N_MFCC
 
     expected_shape = (
-        expected_channels,
+        N_MELS,
         MAX_PAD_LEN
     )
 
@@ -1351,10 +1021,6 @@ def validate_final_data(
             "Unexpected TEST feature shape: "
             f"{test_features.shape}"
         )
-
-    # --------------------------------------------------------
-    # Label validation
-    # --------------------------------------------------------
 
     valid_labels = set(
         EMOTION_LABELS.values()
@@ -1380,10 +1046,6 @@ def validate_final_data(
                 f"{unique_labels}"
             )
 
-    # --------------------------------------------------------
-    # NaN / Inf check
-    # --------------------------------------------------------
-
     for features, split_name in [
         (train_features, "TRAIN"),
         (val_features, "VALIDATION"),
@@ -1401,7 +1063,7 @@ def validate_final_data(
 
     print()
     print(
-        "Final data validation: PASSED"
+        "Final Log-Mel data validation: PASSED"
     )
 
 
@@ -1414,12 +1076,12 @@ def main():
     print()
     print("=" * 70)
     print(
-        "CREMA-D MFCC FEATURE EXTRACTION PIPELINE"
+        "CREMA-D LOG-MEL FEATURE EXTRACTION"
     )
     print("=" * 70)
 
     # --------------------------------------------------------
-    # 1. Check raw dataset
+    # 1. Check dataset
     # --------------------------------------------------------
 
     if not RAW_DIR.exists():
@@ -1447,7 +1109,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 2. Create output directories
+    # 2. Create directories
     # --------------------------------------------------------
 
     create_directories()
@@ -1489,7 +1151,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 4. Validate actor independence
+    # 4. Actor leakage check
     # --------------------------------------------------------
 
     validate_actor_splits(
@@ -1499,7 +1161,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 5. Extract TRAIN features
+    # 5. TRAIN
     # --------------------------------------------------------
 
     (
@@ -1515,7 +1177,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 6. Extract VALIDATION features
+    # 6. VALIDATION
     # --------------------------------------------------------
 
     (
@@ -1531,7 +1193,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 7. Extract TEST features
+    # 7. TEST
     # --------------------------------------------------------
 
     (
@@ -1547,13 +1209,13 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 8. Calculate TRAIN-ONLY normalization
+    # 8. TRAIN-ONLY NORMALIZATION
     # --------------------------------------------------------
 
     print()
     print("=" * 70)
     print(
-        "TRAIN-ONLY NORMALIZATION"
+        "TRAIN-ONLY LOG-MEL NORMALIZATION"
     )
     print("=" * 70)
 
@@ -1574,11 +1236,11 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 9. Normalize using TRAIN statistics
+    # 9. Normalize
     # --------------------------------------------------------
 
     train_normalized = (
-        normalize_variable_features(
+        normalize_features(
             train_raw,
             train_mean,
             train_std
@@ -1586,7 +1248,7 @@ def main():
     )
 
     val_normalized = (
-        normalize_variable_features(
+        normalize_features(
             val_raw,
             train_mean,
             train_std
@@ -1594,7 +1256,7 @@ def main():
     )
 
     test_normalized = (
-        normalize_variable_features(
+        normalize_features(
             test_raw,
             train_mean,
             train_std
@@ -1602,7 +1264,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 10. Pad AFTER normalization
+    # 10. PAD AFTER NORMALIZATION
     # --------------------------------------------------------
 
     train_features = (
@@ -1624,7 +1286,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 11. Save normalization statistics
+    # 11. Save normalization
     # --------------------------------------------------------
 
     save_normalization_statistics(
@@ -1633,7 +1295,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 12. Final validation
+    # 12. Validate
     # --------------------------------------------------------
 
     validate_final_data(
@@ -1646,7 +1308,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 13. Save individual splits
+    # 13. Save split files
     # --------------------------------------------------------
 
     save_split(
@@ -1677,7 +1339,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 14. Save class distributions
+    # 14. Class distribution
     # --------------------------------------------------------
 
     save_class_distribution(
@@ -1687,7 +1349,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 15. Save metadata
+    # 15. Metadata
     # --------------------------------------------------------
 
     all_skipped = (
@@ -1707,76 +1369,13 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 16. Legacy combined files
-    # --------------------------------------------------------
-    #
-    # These are retained for compatibility with older scripts.
-    #
-    # IMPORTANT:
-    # Do NOT use these combined files for final experiments
-    # if the script performs a new random split.
-    #
-    # Use:
-    #   train_features.npy
-    #   validation_features.npy
-    #   test_features.npy
-    #
-    # instead.
-    # --------------------------------------------------------
-
-    all_features = np.concatenate(
-        [
-            train_features,
-            val_features,
-            test_features
-        ],
-        axis=0
-    )
-
-    all_labels = np.concatenate(
-        [
-            train_labels,
-            val_labels,
-            test_labels
-        ],
-        axis=0
-    )
-
-    all_filenames = np.concatenate(
-        [
-            train_filenames,
-            val_filenames,
-            test_filenames
-        ],
-        axis=0
-    )
-
-    np.save(
-        PROCESSED_DIR /
-        "features.npy",
-        all_features
-    )
-
-    np.save(
-        PROCESSED_DIR /
-        "labels.npy",
-        all_labels
-    )
-
-    np.save(
-        PROCESSED_DIR /
-        "filenames.npy",
-        all_filenames
-    )
-
-    # --------------------------------------------------------
-    # 17. Final summary
+    # 16. Final summary
     # --------------------------------------------------------
 
     print()
     print("=" * 70)
     print(
-        "FEATURE EXTRACTION COMPLETED SUCCESSFULLY"
+        "LOG-MEL FEATURE EXTRACTION COMPLETED"
     )
     print("=" * 70)
 
@@ -1804,25 +1403,27 @@ def main():
     print("-" * 50)
 
     print(
-        f"MFCC             : {N_MFCC}"
+        f"Feature type : Log-Mel Spectrogram"
     )
 
     print(
-        f"Delta            : {USE_DELTA}"
+        f"Mel bands    : {N_MELS}"
     )
 
     print(
-        f"Delta-Delta      : {USE_DELTA_DELTA}"
+        f"FFT size     : {N_FFT}"
     )
 
     print(
-        f"Total channels   : "
-        f"{train_features.shape[1]}"
+        f"Hop length   : {HOP_LENGTH}"
     )
 
     print(
-        f"Time frames      : "
-        f"{train_features.shape[2]}"
+        f"Time frames  : {MAX_PAD_LEN}"
+    )
+
+    print(
+        f"Sample rate  : {SAMPLE_RATE}"
     )
 
     print()
@@ -1842,13 +1443,12 @@ def main():
     )
 
     print(
-        "Random seed      : "
-        f"{SEED}"
+        f"Random seed      : {SEED}"
     )
 
     print()
     print(
-        "Ready for model training."
+        "Ready for Log-Mel model training."
     )
 
 
