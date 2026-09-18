@@ -1,0 +1,12 @@
+{
+  "MLP": "29.78%",
+  "CNN1D": "47.76%",
+  "LSTM": "39.71%",
+  "BILSTM": "42.88%",
+  "CNN + Attention": "55.25%",
+  "CNN + BiLSTM + Attention": "50.61%",
+  "Enriched 200D CNN + Attention": "56.22%",
+  "Spectrogram ResNet-34": "41.90%",
+  "Wav2Vec2 SSL Transformer": "N/A (Not Trained Yet)",
+  "Ensemble Stacking Model": "N/A (Not Trained Yet)"
+}

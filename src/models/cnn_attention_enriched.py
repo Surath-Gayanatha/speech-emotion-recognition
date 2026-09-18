@@ -85,7 +85,7 @@ def build_enriched_cnn_attention(input_shape: tuple, num_classes: int = NUM_CLAS
     x = layers.Activation("relu")(x)
 
     # Multi-Head Self-Attention
-    attn = layers.MultiHeadAttention(num_heads=4, key_dim=32, dropout=0.2)(x, x)
+    attn = layers.MultiHeadAttention(num_heads=4, key_dim=64, dropout=0.2)(x, x)
     x = layers.Add()([x, attn])
     x = layers.LayerNormalization()(x)
 
