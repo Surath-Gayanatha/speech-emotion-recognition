@@ -1,0 +1,178 @@
+============================================================
+MFT TRANSFORMER - FINE-TUNING EXPERIMENT 01
+============================================================
+
+Model: Multi-Feature Transformer (MFT Transformer)
+Task: Speech Emotion Recognition
+Dataset: CREMA-D
+
+============================================================
+DATASET INFORMATION
+============================================================
+
+Total samples: 7442
+
+Feature shape: (7442, 256, 201)
+
+Number of classes: 6
+
+Classes:
+0 - Angry
+1 - Disgust
+2 - Fear
+3 - Happy
+4 - Neutral
+5 - Sad
+
+Actor-based split:
+
+Training samples   : 5147
+Validation samples : 1066
+Test samples       : 1229
+
+Feature scaling:
+StandardScaler
+
+Scaler fitted only on training data.
+
+============================================================
+MODEL CONFIGURATION
+============================================================
+
+Model: MFT Transformer
+
+Input shape: (256, 201)
+
+Feature Projection:
+Dense(128)
+Layer Normalization
+Dropout: 0.25
+
+Transformer configuration:
+Embedding dimension: 128
+Attention heads: 8
+Feed-forward dimension: 256
+Number of Transformer blocks: 4
+Dropout: 0.25
+
+Pooling:
+Attention Pooling
+
+Classification Head:
+Dense(128, GELU)
+Dropout: 0.30
+Dense(64, GELU)
+Dropout: 0.20
+Dense(6, Softmax)
+
+Total parameters: approximately 614,343
+
+============================================================
+TRAINING CONFIGURATION
+============================================================
+
+Batch size: 32
+Maximum epochs: 50
+Random seed: 42
+
+Optimizer:
+AdamW
+
+Learning rate: 0.0001
+Weight decay: 0.0003
+
+Loss:
+Sparse Categorical Crossentropy
+
+Callbacks:
+EarlyStopping
+ReduceLROnPlateau
+ModelCheckpoint
+
+Early stopping monitored:
+Validation Accuracy
+
+============================================================
+FINE-TUNING RESULTS
+============================================================
+
+Best Epoch: 30
+
+Best Validation Accuracy: 49.81%
+
+Test Loss: 1.7277
+
+Test Accuracy: 47.52%
+
+Test Precision: 48.33%
+
+Test Recall: 47.52%
+
+Test F1-score: 46.73%
+
+============================================================
+CLASSIFICATION REPORT
+============================================================
+
+              precision    recall  f1-score   support
+
+Angry            0.45      0.76      0.56       210
+Disgust          0.43      0.46      0.45       210
+Fear             0.44      0.40      0.42       210
+Happy            0.50      0.37      0.43       210
+Neutral          0.51      0.34      0.41       179
+Sad              0.57      0.50      0.53       210
+
+accuracy                           0.48      1229
+macro avg         0.48      0.47      0.47      1229
+weighted avg      0.48      0.48      0.47      1229
+
+============================================================
+CONFUSION MATRIX
+============================================================
+
+[[160  17  16  13   4   0]
+ [ 53  97  22  10   9  19]
+ [ 34  23  84  28  10  31]
+ [ 76  17  25  78  10   4]
+ [ 22  38  14  19  60  26]
+ [ 13  31  29   8  24 105]]
+
+============================================================
+COMPARISON WITH BASELINE
+============================================================
+
+Baseline Test Accuracy : 50.53%
+Fine-Tuning Test Accuracy: 47.52%
+
+Baseline Test F1-score : 49.96%
+Fine-Tuning Test F1-score: 46.73%
+
+Change in Test Accuracy:
+-3.01 percentage points
+
+Change in Test F1-score:
+-3.23 percentage points
+
+============================================================
+OBSERVATION
+============================================================
+
+The first fine-tuning experiment did not improve the MFT
+Transformer's performance.
+
+The changes increased dropout from 0.15 to 0.25 and changed
+the AdamW learning rate from 0.0002 to 0.0001 and weight decay
+from 0.0001 to 0.0003.
+
+The best validation accuracy was 49.81%, while the final test
+accuracy was 47.52%.
+
+Therefore, this configuration was not retained as the final
+MFT Transformer configuration.
+
+The baseline configuration remains the reference experiment.
+
+============================================================
+END OF FINE-TUNING EXPERIMENT 01
+============================================================

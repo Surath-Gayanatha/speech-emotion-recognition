@@ -1,0 +1,134 @@
+============================================================
+MFT TRANSFORMER - BASELINE RESULTS
+============================================================
+
+Model: Multi-Feature Transformer (MFT Transformer)
+Task: Speech Emotion Recognition
+Dataset: CREMA-D
+
+============================================================
+DATASET INFORMATION
+============================================================
+
+Total samples: 7442
+
+Feature shape: (7442, 256, 201)
+
+Number of classes: 6
+
+Classes:
+0 - Angry
+1 - Disgust
+2 - Fear
+3 - Happy
+4 - Neutral
+5 - Sad
+
+Actor-based split:
+
+Training samples   : 5147
+Validation samples : 1066
+Test samples       : 1229
+
+Feature scaling:
+StandardScaler
+
+Scaler fitted only on training data.
+
+============================================================
+MODEL CONFIGURATION
+============================================================
+
+Model: MFT Transformer
+
+Input shape: (256, 201)
+
+Feature Projection:
+Dense(128)
+Layer Normalization
+Dropout: 0.15
+
+Transformer configuration:
+Embedding dimension: 128
+Attention heads: 8
+Feed-forward dimension: 256
+Number of Transformer blocks: 4
+Dropout: 0.15
+
+Pooling:
+Attention Pooling
+
+Classification Head:
+Dense(128, GELU)
+Dropout: 0.30
+Dense(64, GELU)
+Dropout: 0.20
+Dense(6, Softmax)
+
+Total parameters: 614,343
+
+============================================================
+TRAINING CONFIGURATION
+============================================================
+
+Batch size: 32
+Maximum epochs: 50
+Random seed: 42
+
+Optimizer:
+AdamW
+
+Learning rate: 0.0002
+Weight decay: 0.0001
+
+Loss:
+Sparse Categorical Crossentropy
+
+Callbacks:
+EarlyStopping
+ReduceLROnPlateau
+ModelCheckpoint
+
+Early stopping monitored:
+Validation Accuracy
+
+============================================================
+BASELINE RESULTS
+============================================================
+
+Best Validation Accuracy: 51.97%
+
+Test Accuracy: 50.53%
+
+Test F1-score: 49.96%
+
+============================================================
+BASELINE CONFUSION MATRIX
+============================================================
+
+[[157  29   6  17   1   0]
+ [ 49  97  13  14  16  21]
+ [ 27  30  71  31  22  29]
+ [ 52  21  12 101  19   5]
+ [ 14  34   5  19  82  25]
+ [  7  29  18  11  32 113]]
+
+============================================================
+OBSERVATION
+============================================================
+
+The baseline MFT Transformer achieved 50.53% test accuracy
+and 49.96% test F1-score.
+
+The model used the independently extracted 201-dimensional
+multi-feature audio representation with 256 time steps.
+
+The model was evaluated using an actor-based train,
+validation, and test split.
+
+This baseline configuration is retained as the reference
+configuration for subsequent fine-tuning experiments.
+
+============================================================
+END OF BASELINE RESULTS
+============================================================
