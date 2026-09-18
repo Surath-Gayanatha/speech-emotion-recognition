@@ -1,0 +1,27 @@
+CNN + BiGRU + Multi-Head Attention
+FINAL UNSEEN TEST EVALUATION
+===========================================================================
+
+Test Loss: 1.260996
+Test Accuracy: 0.575264
+Macro Precision: 0.588643
+Macro Recall: 0.575543
+Macro F1: 0.574147
+Weighted Precision: 0.586404
+Weighted Recall: 0.575264
+Weighted F1: 0.572770
+
+Classification Report
+---------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+         ANG     0.5919    0.7667    0.6680       210
+         DIS     0.4854    0.6333    0.5496       210
+         FEA     0.4976    0.4857    0.4916       210
+         HAP     0.6222    0.5333    0.5744       210
+         NEU     0.6774    0.5866    0.6287       179
+         SAD     0.6573    0.4476    0.5326       210
+
+    accuracy                         0.5753      1229
+   macro avg     0.5886    0.5755    0.5741      1229
+weighted avg     0.5864    0.5753    0.5728      1229

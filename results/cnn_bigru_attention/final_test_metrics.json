@@ -1,0 +1,33 @@
+{
+    "model": "CNN + BiGRU + Multi-Head Attention",
+    "feature": "Log-Mel Spectrogram",
+    "input_shape": [
+        64,
+        174,
+        1
+    ],
+    "num_classes": 6,
+    "emotion_classes": [
+        "ANG",
+        "DIS",
+        "FEA",
+        "HAP",
+        "NEU",
+        "SAD"
+    ],
+    "test_samples": 1229,
+    "seed": 42,
+    "batch_size": 32,
+    "test_loss": 1.2609957456588745,
+    "test_accuracy": 0.5752644426362896,
+    "test_accuracy_percent": 57.52644426362896,
+    "macro_precision": 0.5886430724288737,
+    "macro_recall": 0.5755431409062693,
+    "macro_f1": 0.5741470379104365,
+    "weighted_precision": 0.5864038008627996,
+    "weighted_recall": 0.5752644426362896,
+    "weighted_f1": 0.5727699347461986,
+    "checkpoint": "models/cnn_bigru_attention\\best_model.keras",
+    "test_used_for_training": false,
+    "test_used_for_model_selection": false
+}
