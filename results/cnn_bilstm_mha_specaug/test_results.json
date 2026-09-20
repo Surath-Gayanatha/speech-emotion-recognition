@@ -1,0 +1,60 @@
+{
+    "model": "CNN + BiLSTM + Multi-Head Self-Attention + SpecAugment",
+    "test_loss": 1.5069036483764648,
+    "test_accuracy": 0.5988608598709106,
+    "macro_precision": 0.630240625316979,
+    "macro_recall": 0.5977343265052762,
+    "macro_f1": 0.5973309827915242,
+    "classification_report": "              precision    recall  f1-score   support\n\n       Anger     0.5607    0.8143    0.6641       210\n     Disgust     0.4964    0.6524    0.5638       210\n        Fear     0.5485    0.6190    0.5817       210\n       Happy     0.7172    0.4952    0.5859       210\n     Neutral     0.7444    0.5531    0.6346       179\n         Sad     0.7143    0.4524    0.5539       210\n\n    accuracy                         0.5989      1229\n   macro avg     0.6302    0.5977    0.5973      1229\nweighted avg     0.6274    0.5989    0.5964      1229\n",
+    "confusion_matrix": [
+        [
+            171,
+            27,
+            3,
+            7,
+            2,
+            0
+        ],
+        [
+            37,
+            137,
+            23,
+            4,
+            3,
+            6
+        ],
+        [
+            16,
+            20,
+            130,
+            14,
+            9,
+            21
+        ],
+        [
+            49,
+            22,
+            31,
+            104,
+            3,
+            1
+        ],
+        [
+            18,
+            33,
+            6,
+            13,
+            99,
+            10
+        ],
+        [
+            14,
+            37,
+            44,
+            3,
+            17,
+            95
+        ]
+    ],
+    "test_samples": 1229
+}
