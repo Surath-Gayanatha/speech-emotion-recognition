@@ -1,0 +1,36 @@
+{
+  "dataset": "CREMA-D",
+  "input_representation": "Log-Mel Spectrogram",
+  "input_shape": [
+    64,
+    174,
+    1
+  ],
+  "train_samples": 5147,
+  "validation_samples": 1066,
+  "test_samples": 1229,
+  "num_classes": 6,
+  "architecture": "CNN + Transformer Encoder x2 + Multi-Head Attention",
+  "cnn_filters": [
+    32,
+    64,
+    128
+  ],
+  "transformer_blocks": 2,
+  "transformer_embedding_dimension": 256,
+  "transformer_attention_heads": 8,
+  "transformer_feed_forward_dimension": 512,
+  "batch_size": 32,
+  "epochs": 60,
+  "optimizer": "AdamW",
+  "learning_rate": 0.0005,
+  "weight_decay": 0.0001,
+  "loss": "Sparse Categorical Crossentropy",
+  "seed": 42,
+  "normalization": "Precomputed training-data-only per-Mel-band normalization",
+  "test_usage": "Test set excluded from training, hyperparameter tuning and model selection",
+  "early_stopping_patience": 10,
+  "reduce_lr_patience": 4,
+  "reduce_lr_factor": 0.5,
+  "minimum_learning_rate": 1e-06
+}
