@@ -1,0 +1,9 @@
+{
+    "model": "CNN + BiGRU + Attention Feature Fusion",
+    "best_epoch": 19,
+    "train_accuracy": 0.796191930770874,
+    "validation_accuracy": 0.6013132929801941,
+    "train_loss": 0.5791186094284058,
+    "validation_loss": 1.2322921752929688,
+    "train_validation_gap": 0.19487863779067993
+}
