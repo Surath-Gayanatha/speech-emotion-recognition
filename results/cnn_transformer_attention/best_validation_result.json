@@ -1,0 +1,8 @@
+{
+  "best_epoch": 16,
+  "train_accuracy": 0.6405673027038574,
+  "validation_accuracy": 0.5703564882278442,
+  "train_loss": 0.9806089401245117,
+  "validation_loss": 1.1979355812072754,
+  "train_validation_gap": 0.07021081447601318
+}
