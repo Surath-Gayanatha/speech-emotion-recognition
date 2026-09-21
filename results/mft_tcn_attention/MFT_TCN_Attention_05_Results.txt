@@ -1,0 +1,73 @@
+============================================================
+MFT TCN + ATTENTION - EXPERIMENT 05
+============================================================
+
+Experiment: MFT_TCN_Attention_05
+
+DATASET
+------------------------------------------------------------
+Dataset: CREMA-D
+Split method: Actor-based split
+Total samples: 7442
+Training samples: 5147
+Validation samples: 1066
+Test samples: 1229
+
+MODEL CONFIGURATION
+------------------------------------------------------------
+Model: MFT TCN + Gated Attention V5
+Feature projection: Dense(160)
+TCN filters: 160
+TCN dilation rates: 1, 2, 4, 8, 16
+TCN gating: Yes
+Multi-Head Attention heads: 8
+Attention key dimension: 20
+Feed-forward dimension: 320
+Pooling: Average + Max + Attention
+Label smoothing: 0.05
+
+TRAINING CONFIGURATION
+------------------------------------------------------------
+Batch size: 32
+Maximum epochs: 60
+Learning rate: 0.0001
+Weight decay: 0.0001
+Random seed: 42
+
+BEST RESULTS
+------------------------------------------------------------
+Best Epoch: 23
+Training Accuracy: 0.7797
+Validation Accuracy: 0.5422
+
+FINAL TEST RESULTS
+------------------------------------------------------------
+Test Accuracy: 0.5118
+Test Precision: 0.5120
+Test Recall: 0.5118
+Test F1-score: 0.5044
+
+CLASSIFICATION REPORT
+------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Angry     0.5643    0.7524    0.6449       210
+     Disgust     0.4360    0.5190    0.4739       210
+        Fear     0.5398    0.4524    0.4922       210
+       Happy     0.4700    0.4857    0.4778       210
+     Neutral     0.5000    0.2961    0.3719       179
+         Sad     0.5600    0.5333    0.5463       210
+
+    accuracy                         0.5118      1229
+   macro avg     0.5117    0.5065    0.5012      1229
+weighted avg     0.5120    0.5118    0.5044      1229
+
+
+CONFUSION MATRIX
+------------------------------------------------------------
+[[158  21   3  21   5   2]
+ [ 39 109  16  16  10  20]
+ [ 20  24  95  33   7  31]
+ [ 45  29  20 102   9   5]
+ [ 12  39  16  29  53  30]
+ [  6  28  26  16  22 112]]
