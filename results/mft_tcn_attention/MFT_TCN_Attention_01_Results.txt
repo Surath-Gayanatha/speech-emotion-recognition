@@ -1,0 +1,90 @@
+============================================================
+MFT TCN + ATTENTION - EXPERIMENT RESULTS
+============================================================
+
+Experiment: MFT_TCN_Attention_01
+
+DATASET
+------------------------------------------------------------
+Dataset: CREMA-D
+Split method: Actor-based split
+Total samples: 7442
+Training samples: 5147
+Validation samples: 1066
+Test samples: 1229
+
+FEATURE CONFIGURATION
+------------------------------------------------------------
+Input shape: (256, 201)
+Number of features: 201
+
+Features:
+- MFCC
+- MFCC Delta
+- MFCC Delta-Delta
+- Log-Mel Spectrogram
+- Chroma
+- RMS Energy
+- Zero Crossing Rate
+- Spectral Centroid
+- Spectral Bandwidth
+- Spectral Rolloff
+
+MODEL CONFIGURATION
+------------------------------------------------------------
+Model: MFT TCN + Multi-Head Attention
+Feature projection: Dense(128)
+TCN filters: 128
+TCN kernel size: 3
+TCN dilation rates: 1, 2, 4, 8
+Multi-Head Attention heads: 8
+Attention key dimension: 16
+Pooling: Average + Max + Attention Pooling
+Classification head: Dense(128) -> Dense(64) -> Dense(6)
+
+TRAINING CONFIGURATION
+------------------------------------------------------------
+Batch size: 32
+Maximum epochs: 50
+Random seed: 42
+Learning rate: 0.0002
+Weight decay: 0.0001
+Early stopping patience: 10
+
+BEST TRAINING / VALIDATION RESULTS
+------------------------------------------------------------
+Best Epoch: 16
+Training Accuracy: 0.7253
+Validation Accuracy: 0.5535
+
+FINAL TEST RESULTS
+------------------------------------------------------------
+Test Accuracy: 0.5273
+Test Precision: 0.5328
+Test Recall: 0.5273
+Test F1-score: 0.5240
+
+CLASSIFICATION REPORT
+------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Angry       0.54      0.72      0.62       210
+     Disgust       0.45      0.50      0.47       210
+        Fear       0.56      0.41      0.48       210
+       Happy       0.59      0.46      0.51       210
+     Neutral       0.48      0.52      0.50       179
+         Sad       0.56      0.55      0.56       210
+
+    accuracy                           0.53      1229
+   macro avg       0.53      0.53      0.52      1229
+weighted avg       0.53      0.53      0.52      1229
+
+
+CONFUSION MATRIX
+------------------------------------------------------------
+[[152  30  12  13   3   0]
+ [ 38 105  14  10  21  22]
+ [ 22  18  87  22  23  38]
+ [ 50  22  19  96  18   5]
+ [ 16  29   3  14  93  24]
+ [  4  29  19   8  35 115]]
