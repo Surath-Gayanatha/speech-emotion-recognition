@@ -1,0 +1,24 @@
+{
+    "model": "Advanced Acoustic Conformer Transformer",
+    "input_shape": [
+        174,
+        64
+    ],
+    "num_classes": 6,
+    "embed_dim": 128,
+    "num_heads": 4,
+    "ff_dim": 256,
+    "num_layers": 2,
+    "conv_kernel_size": 5,
+    "dropout": 0.15,
+    "head_dropout": 0.25,
+    "optimizer": "AdamW",
+    "learning_rate": 0.0002,
+    "weight_decay": 0.0001,
+    "batch_size": 32,
+    "epochs": 60,
+    "seed": 42,
+    "dataset": "CREMA-D",
+    "feature": "Log-Mel Spectrogram",
+    "augmentation": "None"
+}

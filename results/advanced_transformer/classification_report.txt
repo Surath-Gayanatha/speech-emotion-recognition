@@ -1,0 +1,16 @@
+Advanced Acoustic Conformer Transformer
+CREMA-D Test Set Classification Report
+============================================================
+
+              precision    recall  f1-score   support
+
+       Anger     0.5014    0.8762    0.6378       210
+     Disgust     0.5111    0.4381    0.4718       210
+        Fear     0.5442    0.3810    0.4482       210
+       Happy     0.5178    0.4857    0.5012       210
+     Neutral     0.5230    0.5084    0.5156       179
+         Sad     0.6341    0.4952    0.5561       210
+
+    accuracy                         0.5313      1229
+   macro avg     0.5386    0.5308    0.5218      1229
+weighted avg     0.5390    0.5313    0.5219      1229

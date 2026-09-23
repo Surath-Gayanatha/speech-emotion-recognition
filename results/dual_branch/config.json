@@ -1,0 +1,40 @@
+{
+    "seed": 42,
+    "batch_size": 32,
+    "epochs": 60,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "dropout": 0.4,
+    "l2_regularization": 0.0001,
+    "label_smoothing": 0.05,
+    "num_classes": 6,
+    "class_names": [
+        "Anger",
+        "Disgust",
+        "Fear",
+        "Happy",
+        "Neutral",
+        "Sad"
+    ],
+    "mfcc_input_shape": [
+        174,
+        120
+    ],
+    "logmel_input_shape": [
+        174,
+        64
+    ],
+    "optimizer": "AdamW",
+    "specaugment": true,
+    "early_stopping": {
+        "monitor": "val_loss",
+        "patience": 8
+    },
+    "reduce_lr": {
+        "factor": 0.5,
+        "patience": 3,
+        "min_lr": 1e-06
+    },
+    "test_used_during_training": false,
+    "architecture": "MFCC CNN + BiLSTM + Attention + LogMel ResCNN + SE + Feature Fusion + BiGRU + MultiHeadAttention"
+}
