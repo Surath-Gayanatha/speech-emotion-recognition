@@ -1,0 +1,9 @@
+{
+    "model": "CNN + SE Channel Attention + BiLSTM + Multi-Head Self-Attention + SpecAugment",
+    "best_epoch": 20,
+    "train_accuracy": 0.6753448843955994,
+    "validation_accuracy": 0.6144465208053589,
+    "train_loss": 0.8715723752975464,
+    "validation_loss": 1.0793265104293823,
+    "train_validation_gap": 0.06089836359024048
+}

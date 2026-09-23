@@ -1,0 +1,71 @@
+{
+    "model": "Advanced Acoustic Conformer Transformer",
+    "model_name": "advanced_acoustic_transformer",
+    "test_samples": 1229,
+    "test_accuracy": 0.531326281529699,
+    "test_accuracy_percent": 53.13262815296989,
+    "macro_precision": 0.5385987567797624,
+    "macro_recall": 0.5307617274097721,
+    "macro_f1": 0.5217857905020674,
+    "weighted_precision": 0.5389925059921397,
+    "weighted_recall": 0.531326281529699,
+    "weighted_f1": 0.5219423052886443,
+    "confusion_matrix": [
+        [
+            184,
+            11,
+            3,
+            11,
+            1,
+            0
+        ],
+        [
+            54,
+            92,
+            15,
+            13,
+            20,
+            16
+        ],
+        [
+            34,
+            18,
+            80,
+            43,
+            11,
+            24
+        ],
+        [
+            58,
+            16,
+            16,
+            102,
+            15,
+            3
+        ],
+        [
+            30,
+            18,
+            8,
+            15,
+            91,
+            17
+        ],
+        [
+            7,
+            25,
+            25,
+            13,
+            36,
+            104
+        ]
+    ],
+    "emotion_labels": [
+        "Anger",
+        "Disgust",
+        "Fear",
+        "Happy",
+        "Neutral",
+        "Sad"
+    ]
+}
