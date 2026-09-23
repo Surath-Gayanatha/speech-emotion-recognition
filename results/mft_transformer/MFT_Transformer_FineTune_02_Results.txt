@@ -1,0 +1,93 @@
+MFT TRANSFORMER - EXPERIMENT RESULTS
+============================================================
+
+Experiment: MFT_Transformer_FineTune_02
+
+DATASET
+------------------------------------------------------------
+Dataset: CREMA-D
+Split method: Actor-based split
+Total samples: 7442
+Training samples: 5147
+Validation samples: 1066
+Test samples: 1229
+
+FEATURE CONFIGURATION
+------------------------------------------------------------
+Input shape: (256, 201)
+Number of features: 201
+
+Features:
+- MFCC
+- MFCC Delta
+- MFCC Delta-Delta
+- Log-Mel Spectrogram
+- Chroma
+- RMS Energy
+- Zero Crossing Rate
+- Spectral Centroid
+- Spectral Bandwidth
+- Spectral Rolloff
+
+MODEL CONFIGURATION
+------------------------------------------------------------
+Model: MFT Transformer
+Embedding dimension: 128
+Attention heads: 8
+Transformer blocks: 4
+Feed-forward dimension: 256
+Transformer dropout: 0.15
+Total parameters: 614,343
+
+TRAINING CONFIGURATION
+------------------------------------------------------------
+Batch size: 32
+Maximum epochs: 50
+Initial learning rate: 0.0002
+Weight decay: 0.0001
+Early stopping patience: 10
+ReduceLROnPlateau factor: 0.5
+
+BEST TRAINING RESULT
+------------------------------------------------------------
+Best epoch: 31
+Best validation accuracy: 0.5347
+
+FINAL TEST RESULTS
+------------------------------------------------------------
+Accuracy : 0.4988
+Precision: 0.4995
+Recall   : 0.4988
+F1-score : 0.4913
+
+CLASSIFICATION REPORT
+------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Angry       0.53      0.80      0.63       210
+     Disgust       0.44      0.49      0.46       210
+        Fear       0.48      0.44      0.46       210
+       Happy       0.51      0.41      0.46       210
+     Neutral       0.46      0.37      0.41       179
+         Sad       0.58      0.46      0.51       210
+
+    accuracy                           0.50      1229
+   macro avg       0.50      0.50      0.49      1229
+weighted avg       0.50      0.50      0.49      1229
+
+
+CONFUSION MATRIX
+------------------------------------------------------------
+[[167  19   5  13   6   0]
+ [ 35 103  21  15  19  17]
+ [ 26  24  93  27  14  26]
+ [ 60  27  25  87   9   2]
+ [ 22  32  11  23  66  25]
+ [  7  31  40   7  28  97]]
+
+EXPERIMENT NOTES
+------------------------------------------------------------
+This experiment uses the MFT Transformer model with independently extracted multi-feature acoustic representations.
+The dataset uses an actor-based train, validation and test split.
+StandardScaler was fitted only on the training data.
+The best model was selected using validation accuracy.

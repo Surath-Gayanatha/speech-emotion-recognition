@@ -1,34 +1,57 @@
-"""MLP baseline for Speech Emotion Recognition.
-
-Architectural role in the comparison: treats the MFCC(+delta) matrix as a
-flattened feature vector, discarding temporal order entirely. This makes it
-a genuine baseline for testing whether sequential/local structure (as
-modeled by 1D CNN / LSTM / BiLSTM) actually helps -- not just "a smaller
-network," but a structurally different assumption (no time-awareness).
-"""
+"""MLP baseline for Speech Emotion Recognition."""
 
 from tensorflow import keras
-from tensorflow.keras import layers
-
+from tensorflow.keras import layers, regularizers
 from src.config import NUM_CLASSES
 
 
-def build_mlp(input_shape: tuple, num_classes: int = NUM_CLASSES) -> keras.Model:
-    """input_shape: (n_features * MAX_PAD_LEN,) after flattening upstream."""
-    model = keras.Sequential([
-        layers.Input(shape=input_shape),
-        layers.Dense(256, activation="relu"),
-        layers.Dropout(0.3),
-        layers.Dense(128, activation="relu"),
-        layers.Dropout(0.3),
-        layers.Dense(64, activation="relu"),
-        layers.Dropout(0.2),
-        layers.Dense(num_classes, activation="softmax"),
-    ], name="mlp_baseline")
+def build_mlp(
+    input_shape: tuple,
+    num_classes: int = NUM_CLASSES
+) -> keras.Model:
+
+    inputs = layers.Input(shape=input_shape)
+
+    x = layers.Dense(
+        256,
+        activation="relu",
+        kernel_regularizer=regularizers.l2(1e-4)
+    )(inputs)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.4)(x)
+
+    x = layers.Dense(
+        128,
+        activation="relu",
+        kernel_regularizer=regularizers.l2(1e-4)
+    )(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.4)(x)
+
+    x = layers.Dense(
+        64,
+        activation="relu",
+        kernel_regularizer=regularizers.l2(1e-4)
+    )(x)
+    x = layers.Dropout(0.3)(x)
+
+    outputs = layers.Dense(
+        num_classes,
+        activation="softmax"
+    )(x)
+
+    model = keras.Model(
+        inputs=inputs,
+        outputs=outputs,
+        name="mlp_regularized"
+    )
 
     model.compile(
-        optimizer="adam",
+        optimizer=keras.optimizers.Adam(
+            learning_rate=0.0003
+        ),
         loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"],
+        metrics=["accuracy"]
     )
+
     return model
