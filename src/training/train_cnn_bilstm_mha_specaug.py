@@ -1,311 +1,530 @@
+"""
+CNN + BiLSTM + Multi-Head Attention + SpecAugment
+Experiment 1:
+Reduced SpecAugment strength
+Frequency Mask = 4
+Time Mask = 10
+
+IMPORTANT:
+This experiment uses a SEPARATE results directory.
+The original baseline result:
+results/cnn_bilstm_mha_specaug
+is NOT overwritten.
+"""
+
 import os
 import json
 import random
-
 import numpy as np
 import tensorflow as tf
 
-from src.models.cnn_bilstm_mha_specaug import (
-    build_cnn_bilstm_mha_specaug
+from tensorflow.keras import layers, models
+from tensorflow.keras.callbacks import (
+    ModelCheckpoint,
+    ReduceLROnPlateau,
+    EarlyStopping
 )
 
 
 # ============================================================
-# Configuration
+# CONFIGURATION
 # ============================================================
 
 SEED = 42
+
+DATA_DIR = "data/processed/logmel"
+
+# IMPORTANT:
+# Separate experiment folder.
+# Baseline 59.89% remains untouched.
+MODEL_DIR = "models/cnn_bilstm_mha_specaug_exp1_4_10"
+RESULTS_DIR = "results/cnn_bilstm_mha_specaug_exp1_4_10"
+
+BATCH_SIZE = 32
+EPOCHS = 60
+
+INPUT_SHAPE = (64, 174, 1)
+NUM_CLASSES = 6
+
+LEARNING_RATE = 5e-4
+WEIGHT_DECAY = 1e-4
+
+# ============================================================
+# EXPERIMENT 1 - REDUCED SPECAUGMENT
+# ============================================================
+
+FREQ_MASK_PARAM = 4
+TIME_MASK_PARAM = 10
+
+
+# ============================================================
+# REPRODUCIBILITY
+# ============================================================
+
+os.environ["PYTHONHASHSEED"] = str(SEED)
 
 random.seed(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 
-DATA_DIR = "data/processed/logmel"
+try:
+    tf.config.experimental.enable_op_determinism()
+except Exception:
+    pass
 
-MODEL_DIR = "models/cnn_bilstm_mha_specaug"
-RESULTS_DIR = "results/cnn_bilstm_mha_specaug"
+
+# ============================================================
+# CREATE DIRECTORIES
+# ============================================================
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-BATCH_SIZE = 32
-EPOCHS = 60
+
+# ============================================================
+# LOAD DATA
+# ============================================================
+
+print("=" * 70)
+print("LOADING LOG-MEL DATA")
+print("=" * 70)
+
+X_train = np.load(
+    os.path.join(DATA_DIR, "train_features.npy")
+)
+
+y_train = np.load(
+    os.path.join(DATA_DIR, "train_labels.npy")
+)
+
+X_val = np.load(
+    os.path.join(DATA_DIR, "validation_features.npy")
+)
+
+y_val = np.load(
+    os.path.join(DATA_DIR, "validation_labels.npy")
+)
+
+X_test = np.load(
+    os.path.join(DATA_DIR, "test_features.npy")
+)
+
+y_test = np.load(
+    os.path.join(DATA_DIR, "test_labels.npy")
+)
 
 
 # ============================================================
-# SpecAugment
+# ADD CHANNEL DIMENSION
+# ============================================================
+
+if X_train.ndim == 3:
+    X_train = X_train[..., np.newaxis]
+
+if X_val.ndim == 3:
+    X_val = X_val[..., np.newaxis]
+
+if X_test.ndim == 3:
+    X_test = X_test[..., np.newaxis]
+
+
+print("Train:", X_train.shape)
+print("Validation:", X_val.shape)
+print("Test:", X_test.shape)
+
+
+# ============================================================
+# SPEC AUGMENTATION
 # ============================================================
 
 def spec_augment(
-    spectrogram,
-    freq_mask_param=8,
-    time_mask_param=18
+    x,
+    freq_mask_param=FREQ_MASK_PARAM,
+    time_mask_param=TIME_MASK_PARAM
 ):
+    """
+    Apply frequency masking and time masking.
 
-    # (64, 174, 1) -> (64, 174)
-    spectrogram = tf.squeeze(
-        spectrogram,
-        axis=-1
-    )
-
-    freq_size = tf.shape(spectrogram)[0]
-    time_size = tf.shape(spectrogram)[1]
+    This augmentation is applied ONLY to training data.
+    Validation and test data remain unchanged.
+    """
 
     # --------------------------------------------------------
-    # Frequency Mask
+    # Frequency masking
     # --------------------------------------------------------
 
-    freq_width = tf.random.uniform(
+    freq_mask = tf.random.uniform(
         shape=[],
         minval=0,
         maxval=freq_mask_param + 1,
         dtype=tf.int32
     )
 
-    max_freq_start = tf.maximum(
-        1,
-        freq_size - freq_width + 1
-    )
-
     freq_start = tf.random.uniform(
         shape=[],
         minval=0,
-        maxval=max_freq_start,
+        maxval=tf.maximum(
+            1,
+            tf.shape(x)[0] - freq_mask + 1
+        ),
         dtype=tf.int32
     )
 
-    freq_mask = tf.concat(
-        [
-            tf.ones(
-                [freq_start, time_size],
-                dtype=spectrogram.dtype
-            ),
-            tf.zeros(
-                [freq_width, time_size],
-                dtype=spectrogram.dtype
-            ),
-            tf.ones(
-                [
-                    freq_size -
-                    freq_start -
-                    freq_width,
-                    time_size
-                ],
-                dtype=spectrogram.dtype
-            )
-        ],
-        axis=0
+    freq_indices = tf.range(
+        tf.shape(x)[0]
     )
 
-    spectrogram = spectrogram * freq_mask
+    freq_mask_bool = tf.logical_and(
+        freq_indices >= freq_start,
+        freq_indices < freq_start + freq_mask
+    )
+
+    freq_mask_bool = tf.reshape(
+        freq_mask_bool,
+        [-1, 1, 1]
+    )
+
+    x = tf.where(
+        freq_mask_bool,
+        tf.zeros_like(x),
+        x
+    )
 
     # --------------------------------------------------------
-    # Time Mask
+    # Time masking
     # --------------------------------------------------------
 
-    time_width = tf.random.uniform(
+    time_mask = tf.random.uniform(
         shape=[],
         minval=0,
         maxval=time_mask_param + 1,
         dtype=tf.int32
     )
 
-    max_time_start = tf.maximum(
-        1,
-        time_size - time_width + 1
-    )
-
     time_start = tf.random.uniform(
         shape=[],
         minval=0,
-        maxval=max_time_start,
+        maxval=tf.maximum(
+            1,
+            tf.shape(x)[1] - time_mask + 1
+        ),
         dtype=tf.int32
     )
 
-    time_mask = tf.concat(
-        [
-            tf.ones(
-                [
-                    freq_size,
-                    time_start
-                ],
-                dtype=spectrogram.dtype
-            ),
-            tf.zeros(
-                [
-                    freq_size,
-                    time_width
-                ],
-                dtype=spectrogram.dtype
-            ),
-            tf.ones(
-                [
-                    freq_size,
-                    time_size -
-                    time_start -
-                    time_width
-                ],
-                dtype=spectrogram.dtype
-            )
-        ],
-        axis=1
+    time_indices = tf.range(
+        tf.shape(x)[1]
     )
 
-    spectrogram = spectrogram * time_mask
-
-    # (64, 174) -> (64, 174, 1)
-    spectrogram = tf.expand_dims(
-        spectrogram,
-        axis=-1
+    time_mask_bool = tf.logical_and(
+        time_indices >= time_start,
+        time_indices < time_start + time_mask
     )
 
-    return spectrogram
-
-
-# ============================================================
-# Load Data
-# ============================================================
-
-print("\n" + "=" * 70)
-print("LOADING LOG-MEL DATA")
-print("=" * 70)
-
-X_train = np.load(
-    os.path.join(
-        DATA_DIR,
-        "train_features.npy"
+    time_mask_bool = tf.reshape(
+        time_mask_bool,
+        [1, -1, 1]
     )
-)
 
-X_val = np.load(
-    os.path.join(
-        DATA_DIR,
-        "validation_features.npy"
+    x = tf.where(
+        time_mask_bool,
+        tf.zeros_like(x),
+        x
     )
-)
 
-y_train = np.load(
-    os.path.join(
-        DATA_DIR,
-        "train_labels.npy"
-    )
-)
-
-y_val = np.load(
-    os.path.join(
-        DATA_DIR,
-        "validation_labels.npy"
-    )
-)
-
-print("Train features:", X_train.shape)
-print("Validation features:", X_val.shape)
-
-print("Train labels:", y_train.shape)
-print("Validation labels:", y_val.shape)
+    return x
 
 
 # ============================================================
-# Data Types
+# DATASET CREATION
 # ============================================================
 
-X_train = X_train.astype(np.float32)
-X_val = X_val.astype(np.float32)
-
-y_train = y_train.astype(np.int32)
-y_val = y_val.astype(np.int32)
-
-
-# ============================================================
-# Add Channel Dimension
-# ============================================================
-
-X_train = X_train[..., np.newaxis]
-X_val = X_val[..., np.newaxis]
-
-print("\nAfter adding channel dimension:")
-print("Train:", X_train.shape)
-print("Validation:", X_val.shape)
-
-
-# ============================================================
-# Training Dataset
-# ============================================================
+print("\nCreating TensorFlow datasets...")
 
 train_dataset = tf.data.Dataset.from_tensor_slices(
-    (
-        X_train,
-        y_train
-    )
+    (X_train, y_train)
 )
 
+val_dataset = tf.data.Dataset.from_tensor_slices(
+    (X_val, y_val)
+)
+
+test_dataset = tf.data.Dataset.from_tensor_slices(
+    (X_test, y_test)
+)
+
+
+# ============================================================
+# TRAINING AUGMENTATION
+# ============================================================
 
 def training_augmentation(x, y):
 
     x = spec_augment(
         x,
-        freq_mask_param=8,
-        time_mask_param=18
+        freq_mask_param=FREQ_MASK_PARAM,
+        time_mask_param=TIME_MASK_PARAM
     )
 
     return x, y
 
 
-train_dataset = train_dataset.shuffle(
-    buffer_size=len(y_train),
-    seed=SEED,
-    reshuffle_each_iteration=True
-)
-
-train_dataset = train_dataset.map(
-    training_augmentation,
-    num_parallel_calls=tf.data.AUTOTUNE
-)
-
-train_dataset = train_dataset.batch(
-    BATCH_SIZE
-)
-
-train_dataset = train_dataset.prefetch(
-    tf.data.AUTOTUNE
-)
-
-
-# ============================================================
-# Validation Dataset
-# ============================================================
-
-val_dataset = tf.data.Dataset.from_tensor_slices(
-    (
-        X_val,
-        y_val
+train_dataset = (
+    train_dataset
+    .shuffle(
+        buffer_size=len(X_train),
+        seed=SEED,
+        reshuffle_each_iteration=True
     )
-)
-
-val_dataset = val_dataset.batch(
-    BATCH_SIZE
-)
-
-val_dataset = val_dataset.prefetch(
-    tf.data.AUTOTUNE
+    .map(
+        training_augmentation,
+        num_parallel_calls=tf.data.AUTOTUNE
+    )
+    .batch(BATCH_SIZE)
+    .prefetch(tf.data.AUTOTUNE)
 )
 
 
 # ============================================================
-# Build Model
+# VALIDATION DATASET
+# ============================================================
+
+val_dataset = (
+    val_dataset
+    .batch(BATCH_SIZE)
+    .prefetch(tf.data.AUTOTUNE)
+)
+
+
+# ============================================================
+# TEST DATASET
+# ============================================================
+
+test_dataset = (
+    test_dataset
+    .batch(BATCH_SIZE)
+    .prefetch(tf.data.AUTOTUNE)
+)
+
+
+# ============================================================
+# MODEL
+# ============================================================
+
+def build_model(
+    input_shape=INPUT_SHAPE,
+    num_classes=NUM_CLASSES
+):
+
+    inputs = layers.Input(
+        shape=input_shape,
+        name="logmel_input"
+    )
+
+    # ========================================================
+    # CNN BLOCK 1
+    # ========================================================
+
+    x = layers.Conv2D(
+        32,
+        kernel_size=(3, 3),
+        padding="same",
+        activation="relu"
+    )(inputs)
+
+    x = layers.BatchNormalization()(x)
+
+    x = layers.MaxPooling2D(
+        pool_size=(2, 2)
+    )(x)
+
+    x = layers.Dropout(0.15)(x)
+
+
+    # ========================================================
+    # CNN BLOCK 2
+    # ========================================================
+
+    x = layers.Conv2D(
+        64,
+        kernel_size=(3, 3),
+        padding="same",
+        activation="relu"
+    )(x)
+
+    x = layers.BatchNormalization()(x)
+
+    x = layers.MaxPooling2D(
+        pool_size=(2, 2)
+    )(x)
+
+    x = layers.Dropout(0.20)(x)
+
+
+    # ========================================================
+    # CNN BLOCK 3
+    # ========================================================
+
+    x = layers.Conv2D(
+        128,
+        kernel_size=(3, 3),
+        padding="same",
+        activation="relu"
+    )(x)
+
+    x = layers.BatchNormalization()(x)
+
+    x = layers.MaxPooling2D(
+        pool_size=(2, 2)
+    )(x)
+
+    x = layers.Dropout(0.30)(x)
+
+
+    # ========================================================
+    # CONVERT CNN FEATURES TO SEQUENCE
+    # ========================================================
+
+    x = layers.Permute(
+        (2, 1, 3)
+    )(x)
+
+    shape = x.shape
+
+    time_steps = shape[1]
+    feature_dim = shape[2] * shape[3]
+
+    x = layers.Reshape(
+        (time_steps, feature_dim)
+    )(x)
+
+
+    # ========================================================
+    # BiLSTM
+    # ========================================================
+
+    x = layers.Bidirectional(
+        layers.LSTM(
+            128,
+            return_sequences=True,
+            dropout=0.20
+        )
+    )(x)
+
+
+    # ========================================================
+    # MULTI-HEAD ATTENTION
+    # ========================================================
+
+    attention_output = layers.MultiHeadAttention(
+        num_heads=8,
+        key_dim=32,
+        dropout=0.10
+    )(
+        x,
+        x
+    )
+
+    # Residual connection
+    x = layers.Add()(
+        [x, attention_output]
+    )
+
+    x = layers.LayerNormalization()(x)
+
+
+    # ========================================================
+    # FEED FORWARD NETWORK
+    # ========================================================
+
+    ffn = layers.Dense(
+        256,
+        activation=tf.keras.activations.gelu
+    )(x)
+
+    ffn = layers.Dropout(
+        0.20
+    )(ffn)
+
+    ffn = layers.Dense(
+        256
+    )(ffn)
+
+    # Residual connection
+    x = layers.Add()(
+        [x, ffn]
+    )
+
+    x = layers.LayerNormalization()(x)
+
+
+    # ========================================================
+    # GLOBAL AVERAGE POOLING
+    # ========================================================
+
+    x = layers.GlobalAveragePooling1D()(x)
+
+
+    # ========================================================
+    # CLASSIFICATION HEAD
+    # ========================================================
+
+    x = layers.Dense(
+        128,
+        activation="relu"
+    )(x)
+
+    x = layers.Dropout(
+        0.40
+    )(x)
+
+    outputs = layers.Dense(
+        num_classes,
+        activation="softmax",
+        name="emotion_output"
+    )(x)
+
+
+    model = models.Model(
+        inputs=inputs,
+        outputs=outputs,
+        name="CNN_BiLSTM_MHA_SpecAugment_EXP1"
+    )
+
+    return model
+
+
+# ============================================================
+# BUILD MODEL
 # ============================================================
 
 print("\n" + "=" * 70)
-print("BUILDING CNN + BiLSTM + MHA + SPEC-AUGMENT MODEL")
+print("BUILDING MODEL")
 print("=" * 70)
 
-model = build_cnn_bilstm_mha_specaug()
+model = build_model()
 
 model.summary()
 
 
 # ============================================================
-# Paths
+# OPTIMIZER
+# ============================================================
+
+optimizer = tf.keras.optimizers.AdamW(
+    learning_rate=LEARNING_RATE,
+    weight_decay=WEIGHT_DECAY
+)
+
+
+model.compile(
+    optimizer=optimizer,
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+
+# ============================================================
+# CALLBACKS
 # ============================================================
 
 checkpoint_path = os.path.join(
@@ -313,27 +532,8 @@ checkpoint_path = os.path.join(
     "best_model.keras"
 )
 
-history_path = os.path.join(
-    RESULTS_DIR,
-    "history.json"
-)
 
-config_path = os.path.join(
-    RESULTS_DIR,
-    "config.json"
-)
-
-best_result_path = os.path.join(
-    RESULTS_DIR,
-    "best_validation_result.json"
-)
-
-
-# ============================================================
-# Callbacks
-# ============================================================
-
-checkpoint = tf.keras.callbacks.ModelCheckpoint(
+checkpoint = ModelCheckpoint(
     checkpoint_path,
     monitor="val_accuracy",
     mode="max",
@@ -341,15 +541,17 @@ checkpoint = tf.keras.callbacks.ModelCheckpoint(
     verbose=1
 )
 
-reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+
+reduce_lr = ReduceLROnPlateau(
     monitor="val_loss",
     factor=0.5,
     patience=4,
-    min_lr=1e-6,
+    min_lr=1e-7,
     verbose=1
 )
 
-early_stopping = tf.keras.callbacks.EarlyStopping(
+
+early_stopping = EarlyStopping(
     monitor="val_loss",
     patience=10,
     restore_best_weights=True,
@@ -358,12 +560,74 @@ early_stopping = tf.keras.callbacks.EarlyStopping(
 
 
 # ============================================================
-# Training
+# SAVE EXPERIMENT CONFIG
+# ============================================================
+
+config = {
+    "experiment": "EXP1_REDUCED_SPECAUGMENT",
+
+    "seed": SEED,
+
+    "input_shape": list(INPUT_SHAPE),
+
+    "num_classes": NUM_CLASSES,
+
+    "batch_size": BATCH_SIZE,
+
+    "epochs": EPOCHS,
+
+    "optimizer": "AdamW",
+
+    "learning_rate": LEARNING_RATE,
+
+    "weight_decay": WEIGHT_DECAY,
+
+    "specaugment": True,
+
+    "frequency_mask": FREQ_MASK_PARAM,
+
+    "time_mask": TIME_MASK_PARAM,
+
+    "architecture": (
+        "CNN32-64-128 + BiLSTM128 + "
+        "MultiHeadAttention8 + FFN + GAP + Dense128"
+    ),
+
+    "dataset": "CREMA-D",
+
+    "representation": "Log-Mel Spectrogram",
+
+    "test_used_during_training": False
+}
+
+
+with open(
+    os.path.join(
+        RESULTS_DIR,
+        "config.json"
+    ),
+    "w"
+) as f:
+
+    json.dump(
+        config,
+        f,
+        indent=4
+    )
+
+
+# ============================================================
+# TRAIN
 # ============================================================
 
 print("\n" + "=" * 70)
-print("STARTING TRAINING")
+print("STARTING EXPERIMENT 1")
 print("=" * 70)
+
+print("Frequency Mask :", FREQ_MASK_PARAM)
+print("Time Mask      :", TIME_MASK_PARAM)
+print("Results Folder :", RESULTS_DIR)
+print("Model Folder   :", MODEL_DIR)
 
 history = model.fit(
     train_dataset,
@@ -379,140 +643,67 @@ history = model.fit(
 
 
 # ============================================================
-# Save History
+# SAVE HISTORY
 # ============================================================
 
-history_dict = {
-    key: [
-        float(value)
-        for value in values
-    ]
-    for key, values in history.history.items()
-}
+history_dict = history.history
 
 with open(
-    history_path,
-    "w",
-    encoding="utf-8"
-) as file:
+    os.path.join(
+        RESULTS_DIR,
+        "history.json"
+    ),
+    "w"
+) as f:
 
     json.dump(
-        history_dict,
-        file,
+        {
+            key: [
+                float(v)
+                for v in values
+            ]
+            for key, values
+            in history_dict.items()
+        },
+        f,
         indent=4
     )
 
 
 # ============================================================
-# Best Epoch
+# BEST VALIDATION EPOCH
 # ============================================================
 
-val_accuracy_history = history.history[
-    "val_accuracy"
-]
+val_accuracies = history_dict["val_accuracy"]
 
-best_epoch_index = int(
-    np.argmax(
-        val_accuracy_history
-    )
+best_epoch = int(
+    np.argmax(val_accuracies)
 )
-
-best_epoch = best_epoch_index + 1
 
 best_val_accuracy = float(
-    val_accuracy_history[
-        best_epoch_index
-    ]
+    val_accuracies[best_epoch]
 )
 
-train_accuracy_at_best = float(
-    history.history["accuracy"][
-        best_epoch_index
-    ]
+best_train_accuracy = float(
+    history_dict["accuracy"][best_epoch]
 )
 
-train_loss_at_best = float(
-    history.history["loss"][
-        best_epoch_index
-    ]
+best_train_loss = float(
+    history_dict["loss"][best_epoch]
 )
 
-val_loss_at_best = float(
-    history.history["val_loss"][
-        best_epoch_index
-    ]
+best_val_loss = float(
+    history_dict["val_loss"][best_epoch]
 )
 
 train_val_gap = (
-    train_accuracy_at_best -
+    best_train_accuracy -
     best_val_accuracy
 )
 
 
 # ============================================================
-# Save Best Result
-# ============================================================
-
-best_result = {
-    "model": (
-        "CNN + BiLSTM + Multi-Head "
-        "Self-Attention + SpecAugment"
-    ),
-    "best_epoch": best_epoch,
-    "train_accuracy": train_accuracy_at_best,
-    "validation_accuracy": best_val_accuracy,
-    "train_loss": train_loss_at_best,
-    "validation_loss": val_loss_at_best,
-    "train_validation_gap": train_val_gap
-}
-
-with open(
-    best_result_path,
-    "w",
-    encoding="utf-8"
-) as file:
-
-    json.dump(
-        best_result,
-        file,
-        indent=4
-    )
-
-
-# ============================================================
-# Save Configuration
-# ============================================================
-
-config = {
-    "seed": SEED,
-    "batch_size": BATCH_SIZE,
-    "epochs": EPOCHS,
-    "optimizer": "AdamW",
-    "learning_rate": 5e-4,
-    "weight_decay": 1e-4,
-    "input_shape": [64, 174],
-    "num_classes": 6,
-    "specaugment": True,
-    "frequency_mask": 8,
-    "time_mask": 18,
-    "test_used_during_training": False
-}
-
-with open(
-    config_path,
-    "w",
-    encoding="utf-8"
-) as file:
-
-    json.dump(
-        config,
-        file,
-        indent=4
-    )
-
-
-# ============================================================
-# Final Summary
+# PRINT TRAINING SUMMARY
 # ============================================================
 
 print("\n" + "=" * 70)
@@ -520,12 +711,12 @@ print("TRAINING COMPLETED")
 print("=" * 70)
 
 print(
-    f"Best Epoch          : {best_epoch}"
+    f"Best Epoch          : {best_epoch + 1}"
 )
 
 print(
     f"Train Accuracy      : "
-    f"{train_accuracy_at_best * 100:.2f}%"
+    f"{best_train_accuracy * 100:.2f}%"
 )
 
 print(
@@ -535,12 +726,12 @@ print(
 
 print(
     f"Train Loss          : "
-    f"{train_loss_at_best:.4f}"
+    f"{best_train_loss:.4f}"
 )
 
 print(
     f"Validation Loss     : "
-    f"{val_loss_at_best:.4f}"
+    f"{best_val_loss:.4f}"
 )
 
 print(
@@ -548,19 +739,73 @@ print(
     f"{train_val_gap * 100:.2f} percentage points"
 )
 
-print("\nBest model saved to:")
-print(checkpoint_path)
 
-print("\nHistory saved to:")
-print(history_path)
+# ============================================================
+# SAVE BEST VALIDATION RESULT
+# ============================================================
 
-print("\nBest validation result saved to:")
-print(best_result_path)
+best_validation_result = {
+
+    "best_epoch": best_epoch + 1,
+
+    "train_accuracy": best_train_accuracy,
+
+    "validation_accuracy": best_val_accuracy,
+
+    "train_loss": best_train_loss,
+
+    "validation_loss": best_val_loss,
+
+    "train_val_gap": train_val_gap,
+
+    "frequency_mask": FREQ_MASK_PARAM,
+
+    "time_mask": TIME_MASK_PARAM,
+
+    "test_used_during_training": False
+}
+
+
+with open(
+    os.path.join(
+        RESULTS_DIR,
+        "best_validation_result.json"
+    ),
+    "w"
+) as f:
+
+    json.dump(
+        best_validation_result,
+        f,
+        indent=4
+    )
+
+
+# ============================================================
+# IMPORTANT
+# ============================================================
+
+print("\n" + "=" * 70)
+print("IMPORTANT")
+print("=" * 70)
 
 print(
-    "\nIMPORTANT: "
-    "The test set was NOT used during training "
-    "or model selection."
+    "Test set was NOT used during training or model selection."
 )
 
-print("\nTraining completed successfully.")
+print(
+    "The original baseline results/cnn_bilstm_mha_specaug "
+    "folder was NOT overwritten."
+)
+
+print(
+    f"Experiment results saved to: {RESULTS_DIR}"
+)
+
+print(
+    f"Best model saved to: {checkpoint_path}"
+)
+
+print("\nDo NOT run test evaluation yet.")
+print("First compare this experiment's validation accuracy")
+print("against the baseline validation accuracy of 62.76%.")
