@@ -1,0 +1,41 @@
+{
+  "data_dir": "/kaggle/input/cremad",
+  "splits_dir": "data/splits",
+  "cache_dir": "data/processed",
+  "out_dir": "results/bilstm",
+  "model_dir": "models/bilstm",
+  "pooling": "attention",
+  "epochs": 2,
+  "batch_size": 64,
+  "lr": 0.001,
+  "seed": 42,
+  "no_augment": false,
+  "quick": true,
+  "sr": 16000,
+  "n_mels": 64,
+  "n_fft": 640,
+  "hop": 320,
+  "max_frames": 200,
+  "trim_db": 30,
+  "time_mask": 20,
+  "freq_mask": 8,
+  "label_smoothing": 0.1,
+  "class_weight": {
+    "0": 0.8518518518518519,
+    "1": 1.1219512195121952,
+    "2": 1.3142857142857143,
+    "3": 0.8679245283018868,
+    "4": 1.3142857142857143,
+    "5": 0.7931034482758621
+  },
+  "n_clips": {
+    "train": 276,
+    "val": 53,
+    "test": 71
+  },
+  "n_actors": {
+    "train": 63,
+    "val": 13,
+    "test": 15
+  }
+}

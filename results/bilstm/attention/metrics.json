@@ -1,0 +1,37 @@
+{
+  "model": "BiLSTM (attention pooling)",
+  "features": "log-mel 64 + delta + delta-delta (192-D), trimmed, train-only standardisation",
+  "trainable_params": 510022,
+  "epochs_run": 40,
+  "best_epoch": 28,
+  "train_time_sec": 179.2,
+  "sec_per_epoch": 4.5,
+  "generalisation_gap_train_minus_test_acc": 0.3547,
+  "metrics": {
+    "train": {
+      "accuracy": 0.9397707402370313,
+      "precision_macro": 0.941415901199277,
+      "recall_macro_UAR": 0.9410289537595107,
+      "f1_macro": 0.9404753792306132,
+      "f1_weighted": 0.9396194673456901,
+      "roc_auc_macro_ovr": 0.9957987415694253
+    },
+    "val": {
+      "accuracy": 0.6388367729831145,
+      "precision_macro": 0.6368725015612667,
+      "recall_macro_UAR": 0.641025641025641,
+      "f1_macro": 0.6374698954189809,
+      "f1_weighted": 0.6359072474648472,
+      "roc_auc_macro_ovr": 0.893042157691479
+    },
+    "test": {
+      "accuracy": 0.5850284784377543,
+      "precision_macro": 0.5970207616871296,
+      "recall_macro_UAR": 0.5856167420413231,
+      "f1_macro": 0.5829515185104389,
+      "f1_weighted": 0.5815302941456236,
+      "roc_auc_macro_ovr": 0.870829198670329,
+      "inference_ms_per_clip": 0.661
+    }
+  }
+}
