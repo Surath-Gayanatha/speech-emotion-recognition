@@ -25,6 +25,7 @@ Usage (run from repo root)
     python src/training/train_bilstm.py --quick           # 2-minute smoke test
     python src/training/train_bilstm.py                    # full run (attention pooling)
     python src/training/train_bilstm.py --pooling last     # ablation: last hidden state
+    python src/training/train_bilstm.py --rnn_dropout 0.3 --weight_decay 1e-4   # stronger regularisation
 """
 
 import argparse
@@ -71,8 +72,15 @@ MAX_FRAMES = 200     # 4.0 s after silence trimming (covers almost all clips)
 TRIM_DB = 30
 FEAT_DIM = N_MELS * 3
 
+# Regularisation settings. These defaults reproduce the original runs; main()
+# overwrites them from the command line before building the model and dataset.
 TIME_MASK = 20       # SpecAugment: max frames masked
 FREQ_MASK = 8        # SpecAugment: max mel bands masked (same bands in deltas)
+RNN_DROPOUT = 0.2    # input dropout inside both LSTM layers
+WEIGHT_DECAY = 0.0   # > 0 switches the optimiser from Adam to AdamW
+REG_DEFAULTS = {"rnn_dropout": RNN_DROPOUT, "weight_decay": WEIGHT_DECAY,
+                "time_mask": TIME_MASK, "freq_mask": FREQ_MASK}
+REG_TAGS = {"rnn_dropout": "rd", "weight_decay": "wd", "time_mask": "tm", "freq_mask": "fm"}
 
 
 def parse_args():
@@ -89,6 +97,10 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--no_augment", action="store_true")
     p.add_argument("--quick", action="store_true", help="tiny subset, 2 epochs - checks setup")
+    p.add_argument("--rnn_dropout", type=float, default=RNN_DROPOUT, help="dropout inside both LSTM layers")
+    p.add_argument("--weight_decay", type=float, default=WEIGHT_DECAY, help="> 0 uses AdamW with this decay")
+    p.add_argument("--time_mask", type=int, default=TIME_MASK, help="SpecAugment: max frames masked")
+    p.add_argument("--freq_mask", type=int, default=FREQ_MASK, help="SpecAugment: max mel bands masked")
     return p.parse_args()
 
 
@@ -293,9 +305,9 @@ class MaskedAttentionPooling(layers.Layer):
 def build_bilstm(pooling="attention", lr=1e-3):
     inp = layers.Input(shape=(MAX_FRAMES, FEAT_DIM), name="logmel_deltas")
     x = RightPaddingMask(name="right_padding_mask")(inp)
-    x = layers.Bidirectional(layers.LSTM(128, return_sequences=True, dropout=0.2), name="bilstm_1")(x)
+    x = layers.Bidirectional(layers.LSTM(128, return_sequences=True, dropout=RNN_DROPOUT), name="bilstm_1")(x)
     last = pooling == "last"
-    x = layers.Bidirectional(layers.LSTM(64, return_sequences=not last, dropout=0.2), name="bilstm_2")(x)
+    x = layers.Bidirectional(layers.LSTM(64, return_sequences=not last, dropout=RNN_DROPOUT), name="bilstm_2")(x)
     if pooling == "attention":
         x = MaskedAttentionPooling(64, name="attention_pool")(x)
     elif pooling == "mean":
@@ -306,8 +318,12 @@ def build_bilstm(pooling="attention", lr=1e-3):
     out = layers.Dense(len(EMOTIONS), activation="softmax", name="emotion")(x)
 
     model = keras.Model(inp, out, name=f"bilstm_{pooling}")
+    if WEIGHT_DECAY > 0:
+        optimizer = keras.optimizers.AdamW(learning_rate=lr, weight_decay=WEIGHT_DECAY, clipnorm=1.0)
+    else:
+        optimizer = keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0)
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0),
+        optimizer=optimizer,
         loss=keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
         metrics=["accuracy"],
     )
@@ -365,9 +381,16 @@ def plot_confusion(cm, path, title):
 # Main
 # ----------------------------------------------------------------------------
 def main():
+    global RNN_DROPOUT, WEIGHT_DECAY, TIME_MASK, FREQ_MASK
     args = parse_args()
     set_seeds(args.seed)
-    tag = args.pooling + ("" if args.seed == 42 else f"_seed{args.seed}") + ("_quick" if args.quick else "")
+    RNN_DROPOUT, WEIGHT_DECAY = args.rnn_dropout, args.weight_decay
+    TIME_MASK, FREQ_MASK = args.time_mask, args.freq_mask
+    regularisation = {k: getattr(args, k) for k in REG_DEFAULTS}
+    changed = [f"{REG_TAGS[k]}{v:g}" for k, v in regularisation.items() if v != REG_DEFAULTS[k]]
+    reg_tag = ("_reg-" + "-".join(changed)) if changed else ""
+    tag = (args.pooling + ("" if args.seed == 42 else f"_seed{args.seed}") + reg_tag
+           + ("_quick" if args.quick else ""))
     out_dir = Path(args.out_dir) / tag
     model_dir = Path(args.model_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -466,6 +489,7 @@ def main():
         "train_time_sec": round(train_time, 1),
         "sec_per_epoch": round(train_time / len(history["loss"]), 1),
         "generalisation_gap_train_minus_test_acc": round(results["train"]["accuracy"] - results["test"]["accuracy"], 4),
+        "regularisation": regularisation,
         "metrics": results,
     }
     config = {**vars(args), "sr": SR, "n_mels": N_MELS, "n_fft": N_FFT, "hop": HOP,
