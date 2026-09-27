@@ -1,0 +1,11 @@
+{
+    "best_epoch": 23,
+    "train_accuracy": 0.7608315348625183,
+    "validation_accuracy": 0.5975610017776489,
+    "train_loss": 0.655184805393219,
+    "validation_loss": 1.167948603630066,
+    "train_val_gap": 0.16327053308486938,
+    "frequency_mask": 4,
+    "time_mask": 10,
+    "test_used_during_training": false
+}

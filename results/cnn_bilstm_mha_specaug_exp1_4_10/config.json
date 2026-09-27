@@ -1,0 +1,22 @@
+{
+    "experiment": "EXP1_REDUCED_SPECAUGMENT",
+    "seed": 42,
+    "input_shape": [
+        64,
+        174,
+        1
+    ],
+    "num_classes": 6,
+    "batch_size": 32,
+    "epochs": 60,
+    "optimizer": "AdamW",
+    "learning_rate": 0.0005,
+    "weight_decay": 0.0001,
+    "specaugment": true,
+    "frequency_mask": 4,
+    "time_mask": 10,
+    "architecture": "CNN32-64-128 + BiLSTM128 + MultiHeadAttention8 + FFN + GAP + Dense128",
+    "dataset": "CREMA-D",
+    "representation": "Log-Mel Spectrogram",
+    "test_used_during_training": false
+}

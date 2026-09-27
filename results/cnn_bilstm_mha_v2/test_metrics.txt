@@ -1,0 +1,7 @@
+Test Accuracy: 57.45%
+Macro Precision: 59.00%
+Macro Recall: 57.42%
+Macro F1: 57.62%
+Weighted Precision: 58.97%
+Weighted Recall: 57.45%
+Weighted F1: 57.60%
