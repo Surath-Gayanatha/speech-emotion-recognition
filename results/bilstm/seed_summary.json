@@ -1,0 +1,47 @@
+{
+  "accuracy": {
+    "mean": 0.580960130187144,
+    "std": 0.0050813653363697715
+  },
+  "f1_macro": {
+    "mean": 0.5784485488346236,
+    "std": 0.006348651624502208
+  },
+  "recall_macro_UAR": {
+    "mean": 0.5818775679110875,
+    "std": 0.004872040411538333
+  },
+  "roc_auc_macro_ovr": {
+    "mean": 0.8709891340925711,
+    "std": 0.0019154649310407462
+  },
+  "runs": {
+    "attention": {
+      "accuracy": 0.5850284784377543,
+      "precision_macro": 0.5970207616871296,
+      "recall_macro_UAR": 0.5856167420413231,
+      "f1_macro": 0.5829515185104389,
+      "f1_weighted": 0.5815302941456236,
+      "roc_auc_macro_ovr": 0.870829198670329,
+      "inference_ms_per_clip": 0.661
+    },
+    "attention_seed1": {
+      "accuracy": 0.5752644426362896,
+      "precision_macro": 0.5859663358255595,
+      "recall_macro_UAR": 0.5763678283231356,
+      "f1_macro": 0.5711872909955401,
+      "f1_weighted": 0.569316658015372,
+      "roc_auc_macro_ovr": 0.869158651229199,
+      "inference_ms_per_clip": 0.633
+    },
+    "attention_seed7": {
+      "accuracy": 0.5825874694873882,
+      "precision_macro": 0.591339704490775,
+      "recall_macro_UAR": 0.5836481333688037,
+      "f1_macro": 0.5812068369978918,
+      "f1_weighted": 0.5798155751749966,
+      "roc_auc_macro_ovr": 0.8729795523781853,
+      "inference_ms_per_clip": 0.633
+    }
+  }
+}
