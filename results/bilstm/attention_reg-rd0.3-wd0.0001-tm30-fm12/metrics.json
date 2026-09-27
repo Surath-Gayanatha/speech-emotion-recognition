@@ -1,0 +1,43 @@
+{
+  "model": "BiLSTM (attention pooling)",
+  "features": "log-mel 64 + delta + delta-delta (192-D), trimmed, train-only standardisation",
+  "trainable_params": 510022,
+  "regularisation": {
+    "rnn_dropout": 0.3,
+    "weight_decay": 0.0001,
+    "time_mask": 30,
+    "freq_mask": 12
+  },
+  "epochs_run": 39,
+  "best_epoch": 27,
+  "train_time_sec": 180.8,
+  "sec_per_epoch": 4.6,
+  "generalisation_gap_train_minus_test_acc": 0.2791,
+  "metrics": {
+    "train": {
+      "accuracy": 0.8535068972216825,
+      "precision_macro": 0.8612616022874716,
+      "recall_macro_UAR": 0.8559777894770814,
+      "f1_macro": 0.8545358341750728,
+      "f1_weighted": 0.852817776343072,
+      "roc_auc_macro_ovr": 0.9806878058609083
+    },
+    "val": {
+      "accuracy": 0.6294559099437148,
+      "precision_macro": 0.630841028131426,
+      "recall_macro_UAR": 0.6314102564102564,
+      "f1_macro": 0.6302768636940443,
+      "f1_weighted": 0.6285686053106491,
+      "roc_auc_macro_ovr": 0.8953153746705782
+    },
+    "test": {
+      "accuracy": 0.5744507729861676,
+      "precision_macro": 0.5860352152245581,
+      "recall_macro_UAR": 0.5758490733351068,
+      "f1_macro": 0.5721622665598393,
+      "f1_weighted": 0.5705364073212302,
+      "roc_auc_macro_ovr": 0.873022444965362,
+      "inference_ms_per_clip": 0.79
+    }
+  }
+}
