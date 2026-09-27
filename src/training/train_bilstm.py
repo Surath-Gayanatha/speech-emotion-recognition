@@ -367,7 +367,7 @@ def plot_confusion(cm, path, title):
 def main():
     args = parse_args()
     set_seeds(args.seed)
-    tag = args.pooling + ("_quick" if args.quick else "")
+    tag = args.pooling + ("" if args.seed == 42 else f"_seed{args.seed}") + ("_quick" if args.quick else "")
     out_dir = Path(args.out_dir) / tag
     model_dir = Path(args.model_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -480,7 +480,7 @@ def main():
     if not args.quick:
         mdir = Path("results/metrics")
         mdir.mkdir(parents=True, exist_ok=True)
-        (mdir / f"bilstm_{args.pooling}.json").write_text(json.dumps(summary, indent=2))
+        (mdir / f"bilstm_{tag}.json").write_text(json.dumps(summary, indent=2))
 
     print("\n================ SUMMARY ================")
     print(json.dumps({k: v for k, v in summary.items() if k != "metrics"}, indent=2))
