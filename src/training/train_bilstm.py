@@ -25,6 +25,8 @@ Usage (run from repo root)
     python src/training/train_bilstm.py --quick           # 2-minute smoke test
     python src/training/train_bilstm.py                    # full run (attention pooling)
     python src/training/train_bilstm.py --pooling last     # ablation: last hidden state
+    python src/training/train_bilstm.py --speaker_norm     # per-speaker normalisation
+    python src/training/train_bilstm.py --rnn_dropout 0.3 --weight_decay 1e-4   # stronger regularisation
 """
 
 import argparse
@@ -71,25 +73,34 @@ MAX_FRAMES = 200     # 4.0 s after silence trimming (covers almost all clips)
 TRIM_DB = 30
 FEAT_DIM = N_MELS * 3
 
+# Regularisation settings (defaults = the configuration behind the reported results).
+# main() overrides these from the command line.
+REG = {"rnn_dropout": 0.2, "weight_decay": 0.0}
 TIME_MASK = 20       # SpecAugment: max frames masked
 FREQ_MASK = 8        # SpecAugment: max mel bands masked (same bands in deltas)
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--data_dir", default="data/raw")
     p.add_argument("--splits_dir", default="data/splits")
     p.add_argument("--cache_dir", default="data/processed")
-    p.add_argument("--out_dir", default="results/bilstm")
-    p.add_argument("--model_dir", default="models/bilstm")
+    p.add_argument("--out_dir", default=None, help="default: results/<model_name>")
+    p.add_argument("--model_dir", default=None, help="default: models/<model_name>")
     p.add_argument("--pooling", choices=["attention", "mean", "last"], default="attention")
     p.add_argument("--epochs", type=int, default=60)
     p.add_argument("--batch_size", type=int, default=64)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--no_augment", action="store_true")
+    p.add_argument("--rnn_dropout", type=float, default=0.2, help="dropout inside the recurrent layers")
+    p.add_argument("--weight_decay", type=float, default=0.0, help=">0 switches Adam to AdamW with this decay")
+    p.add_argument("--time_mask", type=int, default=20, help="SpecAugment: max frames masked")
+    p.add_argument("--freq_mask", type=int, default=8, help="SpecAugment: max mel bands masked")
+    p.add_argument("--speaker_norm", action="store_true",
+                   help="per-speaker feature standardisation (uses each speaker's unlabelled audio)")
     p.add_argument("--quick", action="store_true", help="tiny subset, 2 epochs - checks setup")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def set_seeds(seed):
@@ -202,6 +213,24 @@ def build_features(items, cache_dir, quick):
     return feats, labels, actors, names
 
 
+def speaker_normalise(feats, actors):
+    """Standardise each clip with its OWN speaker's mean/std (computed over all of
+    that speaker's frames). Uses no labels. Removes speaker-identity offsets
+    (vocal-tract length, habitual pitch/loudness) so the model sees deviations
+    from each person's baseline - the thing that actually signals emotion.
+    Note: at test time this uses the test speaker's unlabelled audio, which is
+    realistic for at-home monitoring (the device hears the same user daily)
+    but must be disclosed in the report."""
+    out = list(feats)
+    for a in np.unique(actors):
+        ids = np.where(actors == a)[0]
+        stacked = np.concatenate([feats[i] for i in ids], axis=0)
+        m, sd = stacked.mean(axis=0), stacked.std(axis=0) + 1e-6
+        for i in ids:
+            out[i] = ((feats[i] - m) / sd).astype(np.float32)
+    return out
+
+
 def fit_normaliser(train_feats):
     stacked = np.concatenate(train_feats, axis=0)
     mean, std = stacked.mean(axis=0), stacked.std(axis=0) + 1e-6
@@ -290,12 +319,44 @@ class MaskedAttentionPooling(layers.Layer):
         return None
 
 
+class MaskedStatsPooling(layers.Layer):
+    """Utterance-level statistics: mean and standard deviation over the VALID
+    (non-padded) frames. Takes [features, raw_input]; the padding mask is
+    rebuilt from raw_input with the same right-padding rule as
+    RightPaddingMask, so it works after layers that drop Keras masks (Conv1D)."""
+
+    def call(self, inputs):
+        x, raw = inputs
+        ops = keras.ops
+        nonzero = ops.cast(ops.any(ops.not_equal(raw, 0.0), axis=-1), "int32")
+        valid = ops.flip(ops.cumsum(ops.flip(nonzero, axis=1), axis=1), axis=1) > 0
+        m = ops.expand_dims(ops.cast(valid, x.dtype), -1)                    # (B, T, 1)
+        n = ops.maximum(ops.sum(m, axis=1), 1.0)
+        mean = ops.sum(x * m, axis=1) / n
+        var = ops.sum(ops.square(x - ops.expand_dims(mean, 1)) * m, axis=1) / n
+        return ops.concatenate([mean, ops.sqrt(var + 1e-6)], axis=-1)
+
+
+def compile_model(model, lr=1e-3):
+    """Identical optimiser / loss / metrics for EVERY architecture (fairness)."""
+    wd = REG["weight_decay"]
+    opt = (keras.optimizers.AdamW(learning_rate=lr, weight_decay=wd, clipnorm=1.0) if wd > 0
+           else keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0))
+    model.compile(
+        optimizer=opt,
+        loss=keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
+        metrics=["accuracy"],
+    )
+    return model
+
+
 def build_bilstm(pooling="attention", lr=1e-3):
     inp = layers.Input(shape=(MAX_FRAMES, FEAT_DIM), name="logmel_deltas")
     x = RightPaddingMask(name="right_padding_mask")(inp)
-    x = layers.Bidirectional(layers.LSTM(128, return_sequences=True, dropout=0.2), name="bilstm_1")(x)
+    rd = REG["rnn_dropout"]
+    x = layers.Bidirectional(layers.LSTM(128, return_sequences=True, dropout=rd), name="bilstm_1")(x)
     last = pooling == "last"
-    x = layers.Bidirectional(layers.LSTM(64, return_sequences=not last, dropout=0.2), name="bilstm_2")(x)
+    x = layers.Bidirectional(layers.LSTM(64, return_sequences=not last, dropout=rd), name="bilstm_2")(x)
     if pooling == "attention":
         x = MaskedAttentionPooling(64, name="attention_pool")(x)
     elif pooling == "mean":
@@ -306,12 +367,7 @@ def build_bilstm(pooling="attention", lr=1e-3):
     out = layers.Dense(len(EMOTIONS), activation="softmax", name="emotion")(x)
 
     model = keras.Model(inp, out, name=f"bilstm_{pooling}")
-    model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0),
-        loss=keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
-        metrics=["accuracy"],
-    )
-    return model
+    return compile_model(model, lr)
 
 
 # ----------------------------------------------------------------------------
@@ -334,12 +390,12 @@ def compute_metrics(y_true, probs):
     }
 
 
-def plot_curves(hist, path):
+def plot_curves(hist, path, title="BiLSTM"):
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))
     for k, a in [("loss", ax[0]), ("accuracy", ax[1])]:
         a.plot(hist[k], label="train")
         a.plot(hist[f"val_{k}"], label="validation")
-        a.set_title(f"BiLSTM {k}")
+        a.set_title(f"{title} {k}")
         a.set_xlabel("epoch")
         a.legend()
         a.grid(alpha=0.3)
@@ -364,12 +420,28 @@ def plot_confusion(cm, path, title):
 # ----------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------
-def main():
-    args = parse_args()
+def main(model_name="bilstm", build_fn=None, display_name=None, uses_pooling=True, argv=None):
+    """Shared training/evaluation pipeline.
+
+    model_name   : folder / file prefix, e.g. "bilstm", "lstm", "cnn1d", "mlp"
+    build_fn     : function(pooling, lr) -> compiled keras.Model (default: BiLSTM)
+    uses_pooling : whether --pooling applies to this architecture
+    """
+    args = parse_args(argv)
     set_seeds(args.seed)
-    tag = args.pooling + ("" if args.seed == 42 else f"_seed{args.seed}") + ("_quick" if args.quick else "")
-    out_dir = Path(args.out_dir) / tag
-    model_dir = Path(args.model_dir)
+    global TIME_MASK, FREQ_MASK
+    REG["rnn_dropout"], REG["weight_decay"] = args.rnn_dropout, args.weight_decay
+    TIME_MASK, FREQ_MASK = args.time_mask, args.freq_mask
+    reg = [(k, v) for k, v, d in [("rd", args.rnn_dropout, 0.2), ("wd", args.weight_decay, 0.0),
+                                  ("tm", args.time_mask, 20), ("fm", args.freq_mask, 8)] if v != d]
+    reg_suffix = ("_reg-" + "-".join(f"{k}{v:g}" for k, v in reg)) if reg else ""
+    build_fn = build_fn or build_bilstm
+    display_name = display_name or "BiLSTM"
+    base = args.pooling if uses_pooling else "default"
+    tag = (base + reg_suffix + ("_spk" if args.speaker_norm else "")
+           + ("" if args.seed == 42 else f"_seed{args.seed}") + ("_quick" if args.quick else ""))
+    out_dir = Path(args.out_dir or f"results/{model_name}") / tag
+    model_dir = Path(args.model_dir or f"models/{model_name}")
     out_dir.mkdir(parents=True, exist_ok=True)
     model_dir.mkdir(parents=True, exist_ok=True)
 
@@ -392,8 +464,11 @@ def main():
         print(f"[split] {s:5s}: {len(idx[s]):5d} clips from "
               f"{len(set(actors[idx[s]])):2d} actors | class counts {np.bincount(labels[idx[s]], minlength=6).tolist()}")
 
+    if args.speaker_norm:
+        print("[features] Applying per-speaker normalisation")
+        feats = speaker_normalise(feats, actors)
     mean, std = fit_normaliser([feats[i] for i in idx["train"]])
-    np.savez(model_dir / "norm_stats.npz", mean=mean, std=std)
+    np.savez(model_dir / f"norm_stats_{tag}.npz", mean=mean, std=std)
 
     X, lens = {}, {}
     y = {s: labels[idx[s]] for s in idx}
@@ -415,9 +490,9 @@ def main():
     cw = compute_class_weight("balanced", classes=np.arange(6), y=y["train"])
     class_weight = {i: float(w) for i, w in enumerate(cw)}
 
-    model = build_bilstm(args.pooling, args.lr)
+    model = build_fn(args.pooling, args.lr)
     model.summary()
-    ckpt = model_dir / f"best_bilstm_{tag}.weights.h5"
+    ckpt = model_dir / f"best_{model_name}_{tag}.weights.h5"
     callbacks = [
         keras.callbacks.ModelCheckpoint(str(ckpt), monitor="val_accuracy", mode="max",
                                         save_best_only=True, save_weights_only=True, verbose=1),
@@ -434,7 +509,7 @@ def main():
     train_time = time.time() - t0
     model.load_weights(str(ckpt))
     history = {k: [float(v) for v in vals] for k, vals in hist.history.items()}
-    plot_curves(history, out_dir / "learning_curves.png")
+    plot_curves(history, out_dir / "learning_curves.png", display_name)
 
     # ---- evaluation (test set touched exactly once, here) ----
     results = {}
@@ -450,7 +525,8 @@ def main():
             np.save(out_dir / "test_probabilities.npy", probs)
             np.save(out_dir / "test_labels.npy", y[s])
             np.save(out_dir / "test_filenames.npy", names[idx[s]])
-            plot_confusion(cm, out_dir / "test_confusion_matrix.png", f"BiLSTM ({args.pooling}) - test set")
+            plot_confusion(cm, out_dir / "test_confusion_matrix.png",
+                           f"{display_name}" + (f" ({args.pooling})" if uses_pooling else "") + " - test set")
             report = classification_report(y[s], probs.argmax(1), labels=range(6),
                                            target_names=EMOTION_NAMES, digits=4, zero_division=0)
             (out_dir / "test_classification_report.txt").write_text(report)
@@ -458,9 +534,12 @@ def main():
 
     best_epoch = int(np.argmax(history["val_accuracy"])) + 1
     summary = {
-        "model": f"BiLSTM ({args.pooling} pooling)",
-        "features": f"log-mel {N_MELS} + delta + delta-delta ({FEAT_DIM}-D), trimmed, train-only standardisation",
+        "model": display_name + (f" ({args.pooling} pooling)" if uses_pooling else ""),
+        "features": f"log-mel {N_MELS} + delta + delta-delta ({FEAT_DIM}-D), trimmed, "
+                    + ("per-speaker + " if args.speaker_norm else "") + "train-only standardisation",
         "trainable_params": int(sum(np.prod(w.shape) for w in model.trainable_weights)),
+        "regularisation": {"rnn_dropout": args.rnn_dropout, "weight_decay": args.weight_decay,
+                           "time_mask": args.time_mask, "freq_mask": args.freq_mask},
         "epochs_run": len(history["loss"]),
         "best_epoch": best_epoch,
         "train_time_sec": round(train_time, 1),
@@ -480,7 +559,7 @@ def main():
     if not args.quick:
         mdir = Path("results/metrics")
         mdir.mkdir(parents=True, exist_ok=True)
-        (mdir / f"bilstm_{tag}.json").write_text(json.dumps(summary, indent=2))
+        (mdir / f"{model_name}_{tag}.json").write_text(json.dumps(summary, indent=2))
 
     print("\n================ SUMMARY ================")
     print(json.dumps({k: v for k, v in summary.items() if k != "metrics"}, indent=2))
