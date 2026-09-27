@@ -240,6 +240,29 @@ def spec_augment(x, y):
 # ----------------------------------------------------------------------------
 # Model
 # ----------------------------------------------------------------------------
+class RightPaddingMask(layers.Layer):
+    """Builds a mask that is True up to the LAST non-zero frame and False after.
+
+    Why not keras.layers.Masking? SpecAugment zeroes whole frames in the middle
+    of a clip. A plain Masking layer would mark those as padding, giving masks
+    with 'holes' - which cuDNN's fast LSTM kernel rejects, and which would also
+    silently skip frames instead of showing the model a masked (mean-valued)
+    frame as SpecAugment intends. Only the genuine right-padding is masked."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.supports_masking = True
+
+    def compute_mask(self, inputs, mask=None):
+        ops = keras.ops
+        nonzero = ops.cast(ops.any(ops.not_equal(inputs, 0.0), axis=-1), "int32")
+        from_end = ops.flip(ops.cumsum(ops.flip(nonzero, axis=1), axis=1), axis=1)
+        return ops.greater(from_end, 0)
+
+    def call(self, inputs):
+        return inputs
+
+
 class MaskedAttentionPooling(layers.Layer):
     """Additive attention over time; padded frames get zero weight.
     Returns the weighted sum of BiLSTM outputs (a learned 'which frames
@@ -269,7 +292,7 @@ class MaskedAttentionPooling(layers.Layer):
 
 def build_bilstm(pooling="attention", lr=1e-3):
     inp = layers.Input(shape=(MAX_FRAMES, FEAT_DIM), name="logmel_deltas")
-    x = layers.Masking(mask_value=0.0)(inp)
+    x = RightPaddingMask(name="right_padding_mask")(inp)
     x = layers.Bidirectional(layers.LSTM(128, return_sequences=True, dropout=0.2), name="bilstm_1")(x)
     last = pooling == "last"
     x = layers.Bidirectional(layers.LSTM(64, return_sequences=not last, dropout=0.2), name="bilstm_2")(x)
