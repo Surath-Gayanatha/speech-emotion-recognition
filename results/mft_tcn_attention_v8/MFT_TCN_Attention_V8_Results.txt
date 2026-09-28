@@ -1,0 +1,91 @@
+======================================================================
+MFT-TCN + MHA V8 RESULTS
+======================================================================
+
+DATASET
+----------------------------------------------------------------------
+Dataset: CREMA-D
+Split: Team actor-level split
+Total samples: 7442
+Training samples: 5147
+Validation samples: 1066
+Test samples: 1229
+
+FEATURE CONFIGURATION
+----------------------------------------------------------------------
+Representation: Log-Mel + Delta + Delta-Delta
+Log-Mel dimensions: 64
+Delta dimensions: 64
+Delta-Delta dimensions: 64
+Total feature dimensions: 192
+Sample rate: 16000 Hz
+N_FFT: 640
+Hop length: 320
+Silence trimming: top_db=30
+Maximum time steps: 200
+StandardScaler: fitted on training data only
+
+MODEL
+----------------------------------------------------------------------
+Architecture: TCN + Multi-Head Self-Attention
+TCN filters: 160
+TCN kernel size: 3
+TCN dilation rates: 1, 2, 4, 8, 16
+MHA heads: 8
+MHA key dimension: 20
+Feed-forward dimension: 320
+Pooling: Average + Max + Attention
+Classifier: Dense 128 -> Dense 64 -> Softmax 6
+
+TRAINING
+----------------------------------------------------------------------
+Batch size: 32
+Maximum epochs: 60
+Learning rate: 0.0001
+Weight decay: 0.0001
+Optimizer: AdamW
+Gradient clipping: 1.0
+Class weighting: enabled
+Temporal masking: enabled
+Frequency masking: enabled
+Validation/test augmentation: disabled
+Random seed: 42
+
+BEST VALIDATION RESULT
+----------------------------------------------------------------------
+Best epoch: 43
+Training accuracy: 0.5780
+Validation accuracy: 0.5225
+
+FINAL TEST RESULT
+----------------------------------------------------------------------
+Test loss: 1.3600
+Test accuracy: 0.5037
+Weighted precision: 0.5477
+Weighted recall: 0.5037
+Weighted F1-score: 0.4829
+
+CLASSIFICATION REPORT
+----------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Angry     0.5152    0.8095    0.6296       210
+     Disgust     0.5733    0.4095    0.4778       210
+        Fear     0.6269    0.2000    0.3032       210
+       Happy     0.4787    0.4810    0.4798       210
+     Neutral     0.3977    0.7821    0.5273       179
+         Sad     0.6723    0.3810    0.4863       210
+
+    accuracy                         0.5037      1229
+   macro avg     0.5440    0.5105    0.4840      1229
+weighted avg     0.5477    0.5037    0.4829      1229
+
+
+CONFUSION MATRIX
+----------------------------------------------------------------------
+[[170  14   0  16   9   1]
+ [ 47  86   6  15  40  16]
+ [ 38  23  42  48  43  16]
+ [ 52  11   8 101  37   1]
+ [ 13   1   1  19 140   5]
+ [ 10  15  10  12  83  80]]
