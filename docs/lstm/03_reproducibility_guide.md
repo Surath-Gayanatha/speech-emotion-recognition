@@ -85,6 +85,7 @@ last decimal places. The committed artifacts are the reference results.
 | Path | Contents | In Git? |
 |---|---|---|
 | `src/training/train_lstm.py` | LSTM model + training script | yes |
+| `src/evaluation/evaluate_lstm.py` | evaluation-only demo (no training) | yes |
 | `results/lstm/attention/` | seed 42 run | yes |
 | `results/lstm/attention_seed1/` | seed 1 run | yes |
 | `results/lstm/attention_seed7/` | seed 7 run | yes |
@@ -150,6 +151,25 @@ for k in ["accuracy", "f1_macro", "recall_macro_UAR", "precision_macro", "f1_wei
 Expected output: accuracy 0.5693 ± 0.0012, macro F1 0.5658 ± 0.0023,
 UAR 0.5713 ± 0.0007, macro precision 0.5836 ± 0.0053,
 weighted F1 0.5637 ± 0.0023, ROC-AUC 0.8614 ± 0.0005.
+
+### Evaluation-only demo (saved checkpoints, no training)
+
+`src/evaluation/evaluate_lstm.py` rebuilds the LSTM, loads
+`models/lstm/best_lstm_<tag>.weights.h5` and `models/lstm/norm_stats.npz`
+(checked against the training-actor statistics), scores the committed split,
+prints metrics, the classification report and the confusion matrix, and
+compares them with the committed `metrics.json`. It trains nothing and writes
+no files. It needs the local (gitignored) checkpoints, dataset and feature
+cache.
+
+```powershell
+python -m src.evaluation.evaluate_lstm                                                  # seed 42, test split
+python -m src.evaluation.evaluate_lstm --tags attention attention_seed1 attention_seed7  # all seeds + mean/std
+python -m src.evaluation.evaluate_lstm --split val                                      # validation split
+```
+
+Takes ≈ 1 minute for all three seeds on CPU; each run should report
+`max |difference| = 0.000000 -> reproduced`.
 
 ### Verifying the runs differ only by seed
 
