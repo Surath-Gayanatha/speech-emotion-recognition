@@ -1,0 +1,62 @@
+MLP + TEMPORAL ATTENTION V4
+============================================================
+
+ARCHITECTURE
+Dense Projection + Multi-Head Temporal Attention + Attention/Mean Pooling + MLP
+
+FEATURE PIPELINE
+64 Log-Mel + 64 Delta + 64 Delta-Delta
+Features per frame: 192
+Maximum frames: 200
+Actor-level split: enabled
+Train-only normalization: enabled
+SpecAugment: enabled
+Class weighting: enabled
+
+TRAINING CONFIGURATION
+============================================================
+Batch size: 64
+Epochs: 60
+Learning rate: 0.0005
+Weight decay: 0.0001
+Label smoothing: 0.0
+Gradient clipping: 1.0
+Random seed: 42
+
+BEST RESULTS
+============================================================
+Best Epoch: 21
+Training Accuracy: 65.64%
+Validation Accuracy: 56.57%
+
+TEST RESULTS
+============================================================
+Test Accuracy: 51.26%
+Test Precision: 52.65%
+Test Recall: 51.26%
+Test F1-score: 50.36%
+
+CLASSIFICATION REPORT
+============================================================
+              precision    recall  f1-score   support
+
+       Angry     0.5253    0.7429    0.6154       210
+     Disgust     0.5602    0.4429    0.4947       210
+        Fear     0.4406    0.3000    0.3569       210
+       Happy     0.4466    0.6571    0.5318       210
+     Neutral     0.5000    0.5251    0.5123       179
+         Sad     0.6825    0.4095    0.5119       210
+
+    accuracy                         0.5126      1229
+   macro avg     0.5259    0.5129    0.5038      1229
+weighted avg     0.5265    0.5126    0.5036      1229
+
+
+CONFUSION MATRIX
+============================================================
+[[156  12   5  32   5   0]
+ [ 42  93  21  21  19  14]
+ [ 38  18  63  65   9  17]
+ [ 34   7  16 138  15   0]
+ [ 20  16   5  35  94   9]
+ [  7  20  33  18  46  86]]
