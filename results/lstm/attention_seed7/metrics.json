@@ -1,0 +1,37 @@
+{
+  "model": "LSTM (attention pooling)",
+  "features": "log-mel 64 + delta + delta-delta (192-D), trimmed, train-only standardisation",
+  "trainable_params": 222534,
+  "epochs_run": 41,
+  "best_epoch": 29,
+  "train_time_sec": 3746.7,
+  "sec_per_epoch": 91.4,
+  "generalisation_gap_train_minus_test_acc": 0.3083,
+  "metrics": {
+    "train": {
+      "accuracy": 0.8762385855838353,
+      "precision_macro": 0.8779722214419317,
+      "recall_macro_UAR": 0.8789306130435134,
+      "f1_macro": 0.8768771147683259,
+      "f1_weighted": 0.8754094519082631,
+      "roc_auc_macro_ovr": 0.9836460554080881
+    },
+    "val": {
+      "accuracy": 0.5984990619136961,
+      "precision_macro": 0.5954214913313142,
+      "recall_macro_UAR": 0.603021978021978,
+      "f1_macro": 0.5974576648974526,
+      "f1_weighted": 0.5945370916954207,
+      "roc_auc_macro_ovr": 0.8789884198255239
+    },
+    "test": {
+      "accuracy": 0.5679414157851912,
+      "precision_macro": 0.5775627749665567,
+      "recall_macro_UAR": 0.5704620023055776,
+      "f1_macro": 0.5638360552825974,
+      "f1_weighted": 0.5616967628543243,
+      "roc_auc_macro_ovr": 0.8611084934702129,
+      "inference_ms_per_clip": 3.459
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "accuracy": {
+    "mean": 0.569297531868728,
+    "std": 0.0012429009207908465
+  },
+  "precision_macro": {
+    "mean": 0.5836312271429401,
+    "std": 0.005283507477828793
+  },
+  "recall_macro_UAR": {
+    "mean": 0.5713265939522922,
+    "std": 0.0007489191242528435
+  },
+  "f1_macro": {
+    "mean": 0.5658204077218504,
+    "std": 0.0023148275982934246
+  },
+  "f1_weighted": {
+    "mean": 0.5636503918529574,
+    "std": 0.0022956951392501986
+  },
+  "roc_auc_macro_ovr": {
+    "mean": 0.861388396268249,
+    "std": 0.000488575123979755
+  },
+  "val_accuracy": {
+    "mean": 0.6119449656035022,
+    "std": 0.014112925699057867
+  },
+  "std_convention": "sample standard deviation (ddof=1), same as results/bilstm/seed_summary.json",
+  "runs": {
+    "attention": {
+      "accuracy": 0.5703824247355573,
+      "precision_macro": 0.5861215162812174,
+      "recall_macro_UAR": 0.5717433714640419,
+      "f1_macro": 0.5683634501050913,
+      "f1_weighted": 0.5661788881734447,
+      "roc_auc_macro_ovr": 0.861952548645001,
+      "inference_ms_per_clip": 3.044
+    },
+    "attention_seed1": {
+      "accuracy": 0.5695687550854354,
+      "precision_macro": 0.5872093901810466,
+      "recall_macro_UAR": 0.5717744080872572,
+      "f1_macro": 0.5652617177778626,
+      "f1_weighted": 0.5630755245311031,
+      "roc_auc_macro_ovr": 0.861104146689533,
+      "inference_ms_per_clip": 2.997
+    },
+    "attention_seed7": {
+      "accuracy": 0.5679414157851912,
+      "precision_macro": 0.5775627749665567,
+      "recall_macro_UAR": 0.5704620023055776,
+      "f1_macro": 0.5638360552825974,
+      "f1_weighted": 0.5616967628543243,
+      "roc_auc_macro_ovr": 0.8611084934702129,
+      "inference_ms_per_clip": 3.459
+    }
+  },
+  "run_info": {
+    "attention": {
+      "seed": 42,
+      "best_epoch": 18,
+      "epochs_run": 30,
+      "val_accuracy": 0.6106941838649156,
+      "train_time_sec": 2356.6,
+      "trainable_params": 222534
+    },
+    "attention_seed1": {
+      "seed": 1,
+      "best_epoch": 26,
+      "epochs_run": 38,
+      "val_accuracy": 0.626641651031895,
+      "train_time_sec": 3020.8,
+      "trainable_params": 222534
+    },
+    "attention_seed7": {
+      "seed": 7,
+      "best_epoch": 29,
+      "epochs_run": 41,
+      "val_accuracy": 0.5984990619136961,
+      "train_time_sec": 3746.7,
+      "trainable_params": 222534
+    }
+  }
+}
