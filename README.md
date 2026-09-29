@@ -7,7 +7,7 @@ Repository: https://github.com/Surath-Gayanatha/speech-emotion-recognition
 | Member | Student ID | Model |
 |---|---|---|
 | Gayanatha D.S (group leader) | IT23233058 | BiLSTM with Attention |
-| Theekshana | [ID] | LSTM with Attention Pooling |
+| Theekshana | IT23219816 | LSTM with Attention Pooling |
 | Sandani A.W.A | IT23228108 | CNN-BiLSTM-MHA with SpecAugment |
 | Sarangi K.P.E | IT23136960 | MFT-TCN with Attention |
 | Additional models | | CNN-BiGRU Dual Attention, CNN-SE-BiLSTM-MHA |
@@ -28,7 +28,7 @@ All six models use the same actor-level split (63 / 13 / 15 actors) and the same
 
 | Model | Owner | Input features | Parameters | Test accuracy | Macro-F1 |
 |---|---|---|---|---|---|
-| BiLSTM with Attention | Gayanatha | log-mel + Δ + ΔΔ, 192 × 200 | 510,022 | 58.50% (seed 42) · **58.1 ± 0.5%** (3 seeds) | 58.30% |
+| BiLSTM with Attention | Surath | log-mel + Δ + ΔΔ, 192 × 200 | 510,022 | 58.50% (seed 42) · **58.1 ± 0.5%** (3 seeds) | 58.30% |
 | LSTM with Attention Pooling | Theekshana | log-mel + Δ + ΔΔ, 192 × 200 | 222,534 | 57.04% (seed 42) · **56.9 ± 0.1%** (3 seeds) | 56.84% |
 | CNN-BiLSTM-MHA + SpecAugment | Sandani | log-mel, 64 × 174 | 1,180,166 | 59.89% | 59.73% |
 | MFT-TCN with Attention (V7) | Sarangi | 201 multi-feature × 256 | 1,080,935 | 54.03% | 53.51% |
