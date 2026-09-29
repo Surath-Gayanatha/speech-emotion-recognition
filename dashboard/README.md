@@ -1,17 +1,29 @@
-# SER Dashboard
+# Speech Emotion Recognition Dashboard
 
-A React/Vite dashboard for the SE4050 Speech Emotion Recognition project.
+A React/Vite dashboard for the SE4050 Speech Emotion Recognition project. It presents the six evaluated deep-learning models, their test performance, architecture summaries, confusion matrices, and an optional live inference workflow.
 
-## What is included
+## Evaluated models
 
-- Six evaluated model cards
+The dashboard compares the following six model architectures:
+
+| Model | Main architecture | Primary contributor |
+| --- | --- | --- |
+| 1 | **BiLSTM + Attention**<br>BiLSTM -> BiLSTM -> Attention -> Dense -> Softmax | Gayanatha D.S |
+| 2 | **LSTM + Attention Pooling**<br>LSTM -> LSTM -> Attention Pooling -> Dense -> Softmax | Rajapaksha L.A.T.C |
+| 3 | **CNN-BiGRU + Dual Attention**<br>CNN -> BiGRU -> Attention -> Residual + LayerNorm -> GAP -> Dense | Additional Model |
+| 4 | **CNN-SE-BiLSTM + Multi-Head Attention**<br>CNN -> SE -> BiLSTM -> MHA -> Dense -> Softmax | Additional Model |
+| 5 | **CNN-BiLSTM + Multi-Head Attention + SpecAugment**<br>CNN -> Projection -> BiLSTM -> 8-Head MHA -> FFN -> GAP -> Dense | Sandani A.W.A |
+| 6 | **MFT-TCN + Attention**<br>MFT -> 5 TCN Blocks -> MHA -> FFN -> Hybrid Pooling -> Dense | Sarangi K.P.E |
+
+### Dashboard features
+
+- Six evaluated model cards with architecture and input summaries
 - Test accuracy comparison
 - Best-model confusion matrix
-- Model inspector with accuracy, macro F1, validation accuracy and train-validation gap
-- Architecture/input summaries
+- Model inspector with accuracy, macro F1, validation accuracy, and train-validation gap
 - Interactive WAV upload UI
 - Optional FastAPI inference backend
-- Responsive professional UI suitable for the project demo/viva
+- Responsive interface suitable for project demonstrations and viva presentations
 
 ## Important reproducibility note
 
